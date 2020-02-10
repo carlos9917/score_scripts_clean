@@ -1,0 +1,1181 @@
+####################################################################
+#### produce scorecards from vfiles/vobs-files                    ##
+####################################################################
+#                                        
+# Notice! Valid dates and lead time are taken from vfld and vobs filename
+#         assuming a given length of path+filename (information is not available
+#         inside files). Therefore pay attention to the lines setting $validdate and $LT
+#         Note also that this script have always used LT=0. Filenames for vfld is given in files below (carra,ERA5,obs)
+#
+#  General outline
+#  1. Read vfld/vobs files and merge in one table xalldata
+#  2. Do verification for different station lists/metrics/parameters/significance test: verifout + max/min of conf interv: verifoutmax, verifoutmin
+#  3. Prepare Scorecard; for each parameter decide what to be plotted
+#  4. Plot scorecard
+
+
+
+# settings, what to verify?
+# These are the names of the list of stations to verify (to be defined below)
+#NOTE: the dimensions of this array will affe
+slist <- c("DenmarkALL","DenmarkSkogen","DenmarkRosskilde",
+	   "DenmarkHighFreq","DenmarkCoast","DenmarkLand"
+	   ,"DenmarkBjarneSel","DenmarkBjarneCoast",
+	     "DenmarkBjarneLand")
+
+#slist <- c("CARRASvalbard","CARRANorwayIslands","CARRANorwayCoast","CARRANorwayFjords","CARRANorwayinland","CARRAMountainsNE",
+#           "CARRASweFin400800m","CARRASweFin50400m","CARRAGulfOfBothnia")
+
+#mod<- c("carra","era5")
+datapath <-'/home/cap/data/scripts/R/harp/score_scripts_clean'
+mod<- c("nea","ec9")                  #models to verify
+pv <- c("TT","TTHC","PSS","FF","RH")    # parameters to verify
+#sl <- c("ALL")    #this is not used anywhere            # station lists to loop over
+met<- c("bias","sde")                 # metrics used
+mm <- length(mod)*length(met)         # models x metrics
+np <- length(pv)                      # number of parameters
+verifpara <- matrix(NA,np*length(slist),mm+2)           # matrix with all scores
+verifparamin <- matrix(NA,np*length(slist),mm+2)           # matrix with all scores lowest conf int
+verifparamax <- matrix(NA,np*length(slist),mm+2)           # matrix with all scores highest conf int
+
+
+threshcol1 <- 1.20   # % difference to color box in scorecard 1.20 = 20%
+threshcol2 <- 0.25   # absolute difference to color box in scorecard, i.e. used for biases
+
+
+######################################################################################################################
+
+# R-packages needs to be downloaded and installed
+#install.packages("gridExtra", lib="/home/morteno/Rpackages")
+
+library(gridExtra)
+library(grid)
+library(gtools)
+library(data.table)
+#library(gridExtra, lib="/home/morteno/Rpackages")
+#library(grid, lib="/home/morteno/Rpackages")
+
+##################################################################
+# read vobs-file (observations) from HARMONIE system           ###
+##################################################################
+
+# the files indicated in the list must match their corresponding
+# timestamps (defined in the filenames)
+files      <- list(nea=file.path(datapath,"nea.vfldfiles.txt"),
+		   ec9=file.path(datapath,"ec9.vfldfiles.txt"))
+    #carra="carra.vfldfiles.txt",
+    #ERA5="era5.vfldfiles.txt")
+
+files  <- lapply(files, scan, what="character")
+
+# list of vobs files for the verification.
+# their names/timestamps must match those of the vfld files above
+obsfiles      <- list(
+    obs=file.path(datapath,"vobsfiles_dmi.txt"))
+
+obsfiles  <- lapply(obsfiles, scan, what="character")
+
+####################################################################
+####################################################################
+####################################################################
+
+fc1tot <- NULL
+fc2tot <- NULL
+fc1 <- NULL
+fc2 <- NULL
+
+for (i in names(files)) {
+    cat("model: ",i," \n")
+    if (i=="nea") { 
+
+        for (ii in 1:length(files[[i]])) {
+            infile <- files[[i]][ii]
+            m <- paste(infile,sep="")            
+	    cat("reading  ",m, "\n")
+            #cat("file to read: ",m)
+            x <- readLines(m)
+            
+            l1 <- read.table(infile,fill=TRUE)
+            l1 <- as.numeric(as.character(l1[1,1]))
+            l2 <- as.numeric(x[2])+2
+            
+            d <- read.table(infile,skip=l2,fill=TRUE)
+            
+### find parameter names
+            par <- readLines(infile,n=l2)
+            para <- array(NA,l2-3)
+            for (k in 3:l2) {
+                para[k-2] <- substring(par,1,5)[k]
+            }
+            para <- gsub(" ", "", para, fixed = TRUE)
+###
+            
+            tot <- dim(d)[1]
+            k <- array(TRUE,tot)
+            
+            for (iii in 1:tot) {
+                if (iii > l1) k[iii] <- FALSE
+            }
+            fc1 <- d[k,]
+            names(fc1) <- c("WMO","LAT","LON",para)
+            fc1[,] <- lapply(fc1, function(x) {as.numeric(as.character(x))})
+            fc1$validdate <- (substring(infile,19,28)) #BUG!
+	    #fc1$validdate <- (substring(infile,24,33))
+            #fc1$LT <- (substring(infile,34,35))
+	    #print(substring(infile,19,28))
+            fc1$LT <- (substring(infile,29,30))
+	    #print(substring(infile,29,30))
+ 
+	    #cat("validdate: ", fc1$validdate)
+        if ( !("FI" %in% names(fc1)) ) fc1$FI <- -99
+        if ( !("NN" %in% names(fc1)) ) fc1$NN <- -99
+    	if ( !("DD" %in% names(fc1)) ) fc1$DD <- -99
+    	if ( !("FF" %in% names(fc1)) ) fc1$FF <- -99
+    	if ( !("TT" %in% names(fc1)) ) fc1$TT <- -99
+    	if ( !("RH" %in% names(fc1)) ) fc1$RH <- -99
+    	if ( !("PS" %in% names(fc1)) ) fc1$PS <- -99
+    	if ( !("PE" %in% names(fc1)) ) fc1$PE <- -99
+    	if ( !("QQ" %in% names(fc1)) ) fc1$QQ <- -99
+    	if ( !("VI" %in% names(fc1)) ) fc1$VI <- -99
+    	if ( !("TD" %in% names(fc1)) ) fc1$TD <- -99
+    	if ( !("TX" %in% names(fc1)) ) fc1$TX <- -99
+        if ( !("TN" %in% names(fc1)) ) fc1$TN <- -99
+        if ( !("GX" %in% names(fc1)) ) fc1$GX <- -99
+
+            if (ii==1) fc1tot <- fc1
+            if (ii>1)  fc1tot <- rbind(fc1,fc1tot)
+	    #if (ii > 1) fc1tot <- smartbind(fc1,fc1tot)
+	    #if (ii > 1) fc1tot <- rbind(fc1, fc1tot[, names(fc1)])
+	    #if (ii > 1) fc1tot <-rbindlist(list(fc1,fc1tot), fill = TRUE)
+        
+        
+            
+        } 
+    }
+    if (i=="ec9") { 
+        for (ii in 1:length(files[[i]])) {
+            infile <- files[[i]][ii]
+            m <- paste(infile,sep="")            
+            #print(m)
+	    cat("reading ",m,"\n")
+            x <- readLines(m)
+            
+            l1 <- read.table(infile,fill=TRUE)
+            l1 <- as.numeric(as.character(l1[1,1]))
+            l2 <- as.numeric(x[2])+2
+            d <- read.table(infile,skip=l2,fill=TRUE)
+            
+### find parameter names
+            par <- readLines(infile,n=l2)
+            para <- array(NA,l2-3)
+            for (k in 3:l2) {
+                para[k-2] <- substring(par,1,5)[k]
+            }
+            para <- gsub(" ", "", para, fixed = TRUE)
+###
+            
+            tot <- dim(d)[1]
+            k <- array(TRUE,tot)
+            
+            for (iii in 1:tot) {
+                if (iii > l1) k[iii] <- FALSE
+            }
+            fc2 <- d[k,]
+            names(fc2) <- c("WMO","LAT","LON",para)
+            fc2[,] <- lapply(fc2, function(x) {as.numeric(as.character(x))})
+            fc2$validdate <- (substring(infile,19,28)) #BUG!
+            fc2$LT <- (substring(infile,29,30))
+ 
+            if ( !("FI" %in% names(fc2)) ) fc2$FI <- -99
+    	    if ( !("NN" %in% names(fc2)) ) fc2$NN <- -99
+    	    if ( !("DD" %in% names(fc2)) ) fc2$DD <- -99
+    	    if ( !("FF" %in% names(fc2)) ) fc2$FF <- -99
+    	    if ( !("TT" %in% names(fc2)) ) fc2$TT <- -99
+    	    if ( !("RH" %in% names(fc2)) ) fc2$RH <- -99
+    	    if ( !("PS" %in% names(fc2)) ) fc2$PS <- -99
+    	    if ( !("PE" %in% names(fc2)) ) fc2$PE <- -99
+    	    if ( !("QQ" %in% names(fc2)) ) fc2$QQ <- -99
+    	    if ( !("VI" %in% names(fc2)) ) fc2$VI <- -99
+    	    if ( !("CH" %in% names(fc2)) ) fc2$CH <- -99
+        	if ( !("LC" %in% names(fc2)) ) fc2$LC <- -99
+    	    if ( !("TD" %in% names(fc2)) ) fc2$TD <- -99
+            if ( !("TX" %in% names(fc2)) ) fc2$TX <- -99
+            if ( !("TN" %in% names(fc2)) ) fc2$TN <- -99
+            if ( !("GG" %in% names(fc2)) ) fc2$GG <- -99
+            if ( !("GX" %in% names(fc2)) ) fc2$GX <- -99
+
+            if (ii==1) fc2tot <- fc2
+            if (ii>1)  fc2tot <- rbind(fc2,fc2tot) # this will fail the 2nd time bc second file has more cols
+	    #if (ii > 1) fc2tot <-rbindlist(list(fc2,fc2tot), fill = TRUE)
+            
+        } 
+    } 
+}
+
+#require(miIO)
+print("passed fc reading")
+warnings()
+#fc <- merge2(fc1tot,fc2tot,by=c("WMO","validdate","LT"),suffixes = c(".fc1",".fc2"))
+
+fc <- merge(fc1tot,fc2tot,by=c("WMO","validdate","LT"),suffixes = c(".fc1",".fc2"))
+#fc <- fc1tot
+#fc <- fc1
+print("passed fc merging")
+############################################
+#### read observations #####################
+############################################
+
+            obs   <- NULL
+            obstot<- NULL
+            
+for (i in names(obsfiles)) {
+    for (ii in 1:length(obsfiles[[i]])) {      
+        infileobs <- obsfiles[[i]][ii]
+        m <- paste(infileobs,sep="")
+        print(m)
+        x <- readLines(m)
+        
+        l1 <- read.table(infileobs,fill=TRUE)
+        l1 <- as.numeric(as.character(l1[1,1]))
+        l2 <- as.numeric(x[2])+2
+
+### find parameter names
+        par <- readLines(infileobs,n=l2)
+        para <- array(NA,l2-3)
+        for (k in 3:l2) {
+            para[k-2] <- substring(par,1,5)[k]
+        }
+        para <- gsub(" ", "", para, fixed = TRUE)
+###
+ 
+        
+        d <- read.table(infileobs,skip=l2,fill=TRUE)
+        
+        tot <- dim(d)[1]
+        k <- array(TRUE,tot)
+        
+        for (iii in 1:tot) {
+            if (iii > l1) k[iii] <- FALSE
+        }
+        
+        obs <- d[k,]
+#        names(obs) <- c("WMO","LAT","LON","AMSL","NN","DD","FF","TT","TD","RH","PSS","PS","VI","PE24","PE","PE1","QQ","TX","TM","GW","GM","WX","PE3")
+        names(obs) <- c("WMO","LAT","LON","AMSL",para)
+        if ( !("PE" %in% names(obs)) ) obs$PE <- -99
+    	if ( !("PE1" %in% names(obs)) ) obs$PE1 <- -99
+    	if ( !("PE3" %in% names(obs)) ) obs$PE3 <- -99
+    	if ( !("PE6" %in% names(obs)) ) obs$PE6 <- -99
+    	if ( !("PE24" %in% names(obs)) ) obs$PE24 <- -99
+    	if ( !("TM" %in% names(obs)) ) obs$TM <- -99
+    	if ( !("TX" %in% names(obs)) ) obs$TX <- -99
+    	if ( !("QQ" %in% names(obs)) ) obs$QQ <- -99
+    	if ( !("GW" %in% names(obs)) ) obs$GW <- -99
+    	if ( !("GM" %in% names(obs)) ) obs$GM <- -99
+    	if ( !("WX" %in% names(obs)) ) obs$WX <- -99
+        
+        obs[,] <- lapply(obs, function(x) {as.numeric(as.character(x))})
+        obs$validdate <- (substring(infileobs,16,25))
+	#cat("obs validdate: ", obs$validdate)
+        if (ii==1) obstot <- obs
+        if (ii>1)  obstot <- rbind(obs,obstot)
+        
+    }
+}
+
+
+#xalldata <-  merge2(fc,obstot,by=c("WMO","validdate"),suffixes = c("",".obs"))
+
+print("before obstot")
+
+names(obstot) <- ifelse(names(obstot)=="WMO" | names(obstot)=="validdate", names(obstot),paste(names(obstot),".obs",sep=""))
+print("before xalldata")
+xalldata <-  merge(fc,obstot,by=c("WMO","validdate"),suffixes = c("",".obs"))
+print("after xalldata")
+
+##### all data are read and orginazied in table xalldata
+ 
+########################################
+#### Here start verification part   ####
+########################################
+# station lists:
+#source('stations.R')
+
+########################################
+# station lists:
+DenmarkALL <- c(06030,06041,06043,06049,06052,06058,06060,06070,06072,06073,
+        06074,06079,06080,06081,06096,06102,06104,06110,06116,06118,06119,
+        06120,06123,06126,06135,06138,06141,
+        06149,06151,06154,06156,06165,06168,
+        06170,06180,06181,06190,06193)
+DenmarkCoast <- c( 06041,06043,06052,06058,06073, 06079,06081,06096,06119,06123,06126,06138, 06149,06151,06165,06193)
+
+DenmarkLand <- c(06030,06049,06060,06072,06102,06104,06110,06116, 06120,06126,06135,06141, 06156,06170)
+
+DenmarkSkogen <-c(06041)
+
+DenmarkRosskilde <-c(6170)
+
+DenmarkHighFreq <-c( 01001, 01271, 01317, 01384, 01442, 01465, 01467, 02186, 02464, 02513, 02516, 02518, 02536, 02539, 02540, 02542, 02548, 02549)
+
+DenmarkBjarneSel  <- c(06041, 06052, 06058, 06073, 06079, 06081, 06093, 06096, 06118, 06119, 06123, 06124, 06138, 06147, 06149, 06151, 06159, 06165, 06169, 06180, 06190, 06193, 06197, 06019, 06030, 06031, 06032, 06033, 06049, 06056, 06060, 06065, 06068, 06069, 06070, 06072, 06074, 06080, 06082, 06102, 06104, 06109, 06110, 06120, 06126, 06135, 06136, 06141, 06154, 06156, 06170, 06174, 06181, 06188)
+
+DenmarkBjarneCoast <- c( 06041, 06052, 06058, 06073, 06079, 06081, 06093, 06096, 06118, 06119, 06123, 06124, 06138, 06147, 06149, 06151, 06159, 06165, 06169, 06180, 06190, 06193, 06197)
+
+DenmarkBjarneLand <- c(06019, 06030, 06031, 06032, 06049, 06056, 06060, 06065, 06068, 06069, 06070, 06072, 06074, 06080, 06082, 06102, 06104, 06109, 06110, 06120, 06126, 06135, 06136, 06141 , 06154, 06156, 06170, 06174, 06181)
+
+Iceland <- c(04005, 04007, 04010, 04013, 04038, 04067, 04082, 
+	     04083, 04085, 04097, 04101, 04104, 04105, 04106, 04108, 
+	     04109, 04110, 04111, 04114, 04115, 04121, 04122, 04125, 04127, 04128, 04135, 04136, 04142, 04144, 04145, 04146, 04147, 04148, 04149, 04151, 04157, 04160, 04162, 04165, 04166, 04169, 04170, 04172, 04174, 04177, 04180, 04181, 04183, 04184, 04185, 04188, 04189, 04190, 04194, 04195, 04196, 04197, 04801, 04802, 04803, 04805, 04806, 04808, 04809, 04810, 04812, 04817, 04818, 04819, 04823, 04829, 04832, 04833, 04837, 04839, 04843, 04848, 04853, 04856, 04877, 04878, 04879, 04881, 04883, 04884, 04886, 04887, 04890, 04892, 04893, 04899, 04904, 04905, 04906, 04907, 04908, 04909, 04912, 04915, 04918, 04919, 04927, 04933, 04935, 04936, 04939, 04943, 04950, 04957, 04959, 04961, 04968, 04970, 04975, 04978, 04981, 04982, 04983, 04985, 04986, 04990, 04991, 04993, 04994, 04995, 04998)
+
+
+
+
+CARRANorwayIslands        <- c(1001,1028,1062)
+
+CARRASvalbard      <- c(1002,1003,1003,1005,1006,1007,1008,1009,1011,1013,1016,1017,20107,199762,199870)
+
+CARRANorwayCoast   <- c(1115,1114,1152,1144,1105,1160,1161,1141,1139,1107,1156,1010,1015,1033,1044,
+                        1043,1052,1055,1068,1074,1078,1083,1086,1092,1098,1099,1088,180200,180340,
+                        182310,182530,183300,186520,186950,188460,188660,190650,192650,196560,196600)
+
+CARRANorwayFjords  <- c(1158,1192,1183,1167,1162,1156,1027,1026,1025,1046,1045,1049,1059,1089,180705,
+                        182110,182650,182840,183520,184070,185080,185440,185470,187750,187860,188200,
+                        190100,191080,191150,191180,191725,192910,194130,194170,194800,194870,195590,
+                        195900,196220)
+
+CARRANorwayinland  <- c(1169,1143,1023,1198,1037,1058,1199,1076,1065,1057,1084,1082,1147,179762,181365,
+                        181775,181900,182720,184190,188100,189980,196931,196970,199340)
+
+CARRAMountainsNE   <- c(2028,2029,2102,1018,1030,1035,1036,1042,1064,184880,184900,191530,2701)
+
+CARRASweFin400800m <-c(2013,2019,2020,2024,2031,2036,2038,2044,2045,2055,2101,2103,2104,2110,2121,2123,
+                        2124,2130,2141,2219,2233,2256,2006,2007,2012,2021,2023,2025,2048,2060,2105,2108,
+                        2112,2118,2122,2131,2136,2235,2142030,2144160,2144380,2144510,2144530,2144550,
+                        2144560,2144650,2145500,2145560,2145710,2146250,2146500,2146530,2146600,2147210,
+                        2147300,2147390,2147430,2147460,2147630,2147710,2148150,2148200,2148270,2148300,
+                        2148610,2148620,2154840,2154920,2155680,2155710,2155720,2155730,2155740,2155770,
+                        2155800,2155850,2155890,2155900,2155910,2155920,2155930,2155950,2155980,2155990,
+                        2156230,2156730,2156740,2156770,2156800,2156830,2156840,2156850,2156860,2156880,
+                        2156920,2156930,2156990,2157010,2157020,2157670,2157750,2157970,2157980,2158810,
+                        2158820,2158830,2158880,2158900,2158970,2158980,2159600,2160610,2164720,2164730,
+                        2166600,2166810,2166840,2167730,2167790,2167820,2167850,2168010,2168760,2168820,
+                        2169010,2169020,2169990,2170940,2178740,2179940,2179950,2180010,2180610,2180620,
+                        2180690,2180710,2180780,2180790,2180860,2180946,2180960,2181600,2188830,2189740,
+                        2190970,2191940,2191960,2705,2801,2817,2820,2821,2868)
+
+CARRASweFin50400m <- c(049,2054,2064,2072,2080,2081,2095,2096,2119,2120,2126,2128,2135,2146,
+                        2147,2149,2151,2154,2159,2161,2174,2181,2184,2199,2222,2230,2242,2245,
+                        2254,2261,2263,2271,2282,2292,2022,2026,2032,2043,2084,2086,2088,2092,
+                        2116,2127,2129,2142,2144,2152,2156,2158,2160,2164,2172,2190,2232,2252,
+                        2262,2264,2270,2274,2058086,2116610,2143440,2143600,2144040,2144220,
+                        2144230,2144240,2144250,2144260,2144710,2145040,2145090,2145150,2145180,
+                        2145210,2145280,2145340,2145420,2145570,2146010,2146070,2146150,2146260,
+                        2146380,2146710,2147020,2147100,2147170,2148336,2148370,2148490,2148550,
+                        2148600,2148710,2149010,2149080,2149150,2149160,2149230,2149300,2149370,
+                        2149390,2149400,2149470,2149570,2149610,2149710,2150020,2150110,2150120,
+                        2150200,2150210,2150270,2150280,2150440,2150460,2150530,2150630,2150640,
+                        2156020,2156780,2157600,2157790,2157800,2157860,2157930,2158600,2158610,
+                        2158750,2159680,2159760,2159770,2159900,2159950,2159970,2160600,2160710,
+                        2160730,2160800,2160850,2160960,2161660,2161900,2161930,2167600,2168970,
+                        2169030,2169830,2169930,2169960,2169980,2170610,2170670,2170680,2170690,
+                        2170760,2170840,2170850,2170920,2171700,2171770,2171780,2171800,2171810,
+                        2171830,2171850,2171930,2171940,2171970,2171990,2172010,2172600,2172680,
+                        2172690,2172740,2172780,2172840,2172890,2172900,2172920,2172950,2172960,
+                        2173010,2173020,2173760,2173780,2173810,2173880,2173890,2173950,2173980,
+                        2178680,2178820,2179740,2180600,2180730,2180740,2180746,2180950,2181720,
+                        2181740,2181770,2181810,2181830,2181850,2181890,2181900,2182740,2182800,
+                        2182830,2182850,2182890,2182920,2183600,2183810,2183920,2188680,2188800,
+                        2189780,2191730,2192760,2193730,2702,2716,2717,2719,2720,2722,2723,2726,
+                        2745,2749,2760,2764,2804,2805,2807,2808,2811,2812,2813,2814,2815,2816,
+                        2818,2819,2823,2824,2826,2827,2835,2836,2844,2845,2847,2849,2857,2858,
+                        2860,2866,2867,2869,2881,2882,2888,2890,2701803,2701804,2701810,2701812,
+                        2701822,2701834,2701837,2701839,2701843,2701848,2701850,2701854,2701856,
+                        2701857,2701864,2701870,2701871,2701875,2701876,2701877,2701879,2701880,
+                        2701881,2701882,2701883,2701888,2701891,2701894,2701898,2701901,2701903,
+                        2701909,2701910,2701911,2701913,2701915,2701916,2701917,2701918,2701922,
+                        2701930,2701934,2701935,2701947,2701948,2701949,2701953,2701955,2701956,
+                        2701957,2701963,2701964,2701968,2701974,2701980,2701984,2701995,2701998,
+                        2701999,2702003,2702007,2702008,2702013,2702020,2702022,2702023,2702024,
+                        2702025,2702028,2702037,2702040,2702044,2702045,2702046,2702048,2702051,
+                        2702056)
+
+
+CARRAGulfOfBothnia <- c(2921,2780,2701473,2781,2912,2910,2920,2901,2907,2800,2872,2873,2876,
+                        2701841,2862,2191,2188,2161780,2176,2161670,2863,2297,2141710,2287,2288,
+                        2284,2139630,2269,2128600,2382,2128370,2368,2127140,2127600,2117330,2355,
+                        2117420,2117610)
+
+print("check stations")
+print(CARRAGulfOfBothnia)
+
+### what to verify? moved to top
+##
+#slist <- c("CARRASvalbard","CARRANorwayIslands","CARRANorwayCoast","CARRANorwayFjords","CARRANorwayinland","CARRAMountainsNE",
+#           "CARRASweFin400800m","CARRASweFin50400m","CARRAGulfOfBothnia")
+#
+#mod<- c("carra","era5")
+#pv <- c("TT","TTHC","PSS","FF","RH")    # parameters to verify
+#sl <- c("ALL")                        # station lists to loop over
+#met<- c("bias","sde")                 # metrics used
+#mm <- length(mod)*length(met)         # models x metrics
+#np <- length(pv)                      # number of parameters
+#verifpara <- matrix(NA,np*length(slist),mm+2)           # matrix with all scores
+#verifparamin <- matrix(NA,np*length(slist),mm+2)           # matrix with all scores lowest conf int
+#verifparamax <- matrix(NA,np*length(slist),mm+2)           # matrix with all scores highest conf int
+
+
+for (st in 1:length(slist)) {
+    if (slist[st]=="CARRASvalbard") k <- xalldata$WMO %in% CARRASvalbard 
+    if (slist[st]=="CARRANorwayCoast") k <- xalldata$WMO %in% CARRANorwayCoast 
+    if (slist[st]=="CARRANorwayFjords") k <- xalldata$WMO %in% CARRANorwayFjords 
+    if (slist[st]=="CARRANorwayinland") k <- xalldata$WMO %in%  CARRANorwayinland
+    if (slist[st]=="CARRAMountainsNE") k <- xalldata$WMO %in%  CARRAMountainsNE
+    if (slist[st]=="CARRASweFin400800m") k <- xalldata$WMO %in% CARRASweFin400800m
+    if (slist[st]=="CARRASweFin50400m") k <- xalldata$WMO %in% CARRASweFin50400m
+    if (slist[st]=="CARRAGulfOfBothnia") k <- xalldata$WMO %in% CARRAGulfOfBothnia
+    if (slist[st]=="DenmarkALL") k <- xalldata$WMO %in% DenmarkALL
+    if (slist[st]=="DenmarkSkogen") k <- xalldata$WMO %in% DenmarkSkogen
+    if (slist[st]=="DenmarkRosskilde") k <- xalldata$WMO %in% DenmarkRosskilde
+    if (slist[st]=="DenmarkHighFreq") k <- xalldata$WMO %in% DenmarkHighFreq
+    if (slist[st]=="DenmarkCoast") k <- xalldata$WMO %in% DenmarkCoast
+    if (slist[st]=="DenmarkLand") k <- xalldata$WMO %in% DenmarkLand
+    if (slist[st]=="DenmarkBjarneSel") k <- xalldata$WMO %in% DenmarkBjarneSel
+    if (slist[st]=="DenmarkBjarneCoast") k <- xalldata$WMO %in% DenmarkBjarneCoast
+    if (slist[st]=="DenmarkBjarneLand") k <- xalldata$WMO %in% DenmarkBjarneLand
+
+    if (slist[st]=="DenmarkALL") print("selected DK")
+    if (slist[st]=="ALL") k <- xalldata$WMO %in% unique(xalldata$WMO)
+    
+    x <- xalldata[k,]
+    
+    for (i in 1:np) {
+
+        verifpara[(np*st-np)+i,1] <- slist[st]
+        verifpara[(np*st-np)+i,2] <- pv[i]
+        verifparamin[(np*st-np)+i,1] <- slist[st]
+        verifparamin[(np*st-np)+i,2] <- pv[i]
+        verifparamax[(np*st-np)+i,1] <- slist[st]
+        verifparamax[(np*st-np)+i,2] <- pv[i]
+        
+# TT
+        if (pv[i]=="TT") {
+            obs <- x$TT.obs
+            fc1 <- x$TT.fc1
+            fc2 <- x$TT.fc2
+            
+            k <- (obs > 200. & fc1 > 200. & fc2 > 200.)
+            
+            obs <- obs[k]-273.14
+            fc1 <- fc1[k]-273.14
+            fc2 <- fc2[k]-273.14
+             if (length(obs) > 100) {
+            verifpara[(np*st-np)+i,3] <- round(mean(fc1-obs),2)
+            verifpara[(np*st-np)+i,4] <- round(mean(fc2-obs),2)
+            verifpara[(np*st-np)+i,5] <- round(sd(fc1-obs),2)
+            verifpara[(np*st-np)+i,6] <- round(sd(fc2-obs),2)
+            
+# confidence intervals:
+        rn <- 500
+        btmp1 <- array(NA,rn)
+            btmp2 <- array(NA,rn)
+            
+        sde1 <- array(NA,rn)
+        sde2 <- array(NA,rn)
+        for (rs in 1:rn) {
+            k <- sample(1:length(obs),length(obs),replace=TRUE)
+            btmp1[rs] <- round(mean(fc1[k]-obs[k]),2)
+            btmp2[rs] <- round(mean(fc2[k]-obs[k]),2)
+            sde1[rs] <- round(sd(fc1[k]-obs[k]),2)
+            sde2[rs] <- round(sd(fc2[k]-obs[k]),2)
+        }
+            verifparamin[(np*st-np)+i,3] <- round(quantile(btmp1,probs=0.025,na.rm=TRUE),2)
+            verifparamin[(np*st-np)+i,4] <- round(quantile(btmp2,probs=0.025,na.rm=TRUE),2)
+            verifparamin[(np*st-np)+i,5] <- round(quantile(sde1,probs=0.025,na.rm=TRUE),2)
+            verifparamin[(np*st-np)+i,6] <- round(quantile(sde2,probs=0.025,na.rm=TRUE),2)
+            verifparamax[(np*st-np)+i,3] <- round(quantile(btmp1,probs=0.975,na.rm=TRUE),2)
+            verifparamax[(np*st-np)+i,4] <- round(quantile(btmp2,probs=0.975,na.rm=TRUE),2)
+            verifparamax[(np*st-np)+i,5] <- round(quantile(sde1,probs=0.975,na.rm=TRUE),2)
+            verifparamax[(np*st-np)+i,6] <- round(quantile(sde2,probs=0.975,na.rm=TRUE),2)
+             }
+        
+    }
+         
+# TTHC
+        if (pv[i]=="TTHC") {
+            obs <- x$TT.obs
+            fc1 <- x$TT.fc1 + 0.0065*(x$FI.fc1-x$AMSL.obs)
+            fc2 <- x$TT.fc2 + 0.0065*(x$FI.fc2-x$AMSL.obs)
+            
+            k <- (obs > 200. & fc1 > 200. & fc2 > 200.)
+            
+            obs <- obs[k]-273.14
+            fc1 <- fc1[k]-273.14
+            fc2 <- fc2[k]-273.14
+            
+            verifpara[(np*st-np)+i,3] <- round(mean(fc1-obs),2)
+            verifpara[(np*st-np)+i,4] <- round(mean(fc2-obs),2)
+            verifpara[(np*st-np)+i,5] <- round(sd(fc1-obs),2)
+            verifpara[(np*st-np)+i,6] <- round(sd(fc2-obs),2)
+            
+# confidence intervals:
+        rn <- 500
+        btmp1 <- array(NA,rn)
+        btmp2 <- array(NA,rn)
+        sde1 <- array(NA,rn)
+        sde2 <- array(NA,rn)
+        for (rs in 1:rn) {
+            k <- sample(1:length(obs),length(obs),replace=TRUE)
+            btmp1[rs] <- round(mean(fc1[k]-obs[k]),2)
+            btmp2[rs] <- round(mean(fc2[k]-obs[k]),2)
+            sde1[rs] <- round(sd(fc1[k]-obs[k]),2)
+            sde2[rs] <- round(sd(fc2[k]-obs[k]),2)
+        }
+            verifparamin[(np*st-np)+i,3] <- round(quantile(btmp1,probs=0.025,na.rm=TRUE),2)
+            verifparamin[(np*st-np)+i,4] <- round(quantile(btmp2,probs=0.025,na.rm=TRUE),2)
+            verifparamin[(np*st-np)+i,5] <- round(quantile(sde1,probs=0.025,na.rm=TRUE),2)
+            verifparamin[(np*st-np)+i,6] <- round(quantile(sde2,probs=0.025,na.rm=TRUE),2)
+            verifparamax[(np*st-np)+i,3] <- round(quantile(btmp1,probs=0.975,na.rm=TRUE),2)
+            verifparamax[(np*st-np)+i,4] <- round(quantile(btmp2,probs=0.975,na.rm=TRUE),2)
+            verifparamax[(np*st-np)+i,5] <- round(quantile(sde1,probs=0.975,na.rm=TRUE),2)
+            verifparamax[(np*st-np)+i,6] <- round(quantile(sde2,probs=0.975,na.rm=TRUE),2)
+            
+        
+    }    
+# FF
+        if (pv[i]=="FF") {
+            obs <- x$FF.obs
+            fc1 <- x$FF.fc1
+            fc2 <- x$FF.fc2
+            
+            k <- (obs >= 0. & fc1 >= 0. & fc2 >= 0.)
+            
+            obs <- obs[k]
+            fc1 <- fc1[k]
+            fc2 <- fc2[k]
+             if (length(obs) > 100) {
+            verifpara[(np*st-np)+i,3] <- round(mean(fc1-obs),2)
+            verifpara[(np*st-np)+i,4] <- round(mean(fc2-obs),2)
+            verifpara[(np*st-np)+i,5] <- round(sd(fc1-obs),2)
+            verifpara[(np*st-np)+i,6] <- round(sd(fc2-obs),2)
+
+                     
+# confidence intervals:
+        rn <- 500
+        btmp1 <- array(NA,rn)
+        btmp2 <- array(NA,rn)
+        sde1 <- array(NA,rn)
+        sde2 <- array(NA,rn)
+        for (rs in 1:rn) {
+            k <- sample(1:length(obs),length(obs),replace=TRUE)
+            btmp1[rs] <- round(mean(fc1[k]-obs[k]),2)
+            btmp2[rs] <- round(mean(fc2[k]-obs[k]),2)
+            sde1[rs] <- round(sd(fc1[k]-obs[k]),2)
+            sde2[rs] <- round(sd(fc2[k]-obs[k]),2)
+        }
+            verifparamin[(np*st-np)+i,3] <- round(quantile(btmp1,probs=0.025,na.rm=TRUE),2)
+            verifparamin[(np*st-np)+i,4] <- round(quantile(btmp2,probs=0.025,na.rm=TRUE),2)
+            verifparamin[(np*st-np)+i,5] <- round(quantile(sde1,probs=0.025,na.rm=TRUE),2)
+            verifparamin[(np*st-np)+i,6] <- round(quantile(sde2,probs=0.025,na.rm=TRUE),2)
+            verifparamax[(np*st-np)+i,3] <- round(quantile(btmp1,probs=0.975,na.rm=TRUE),2)
+            verifparamax[(np*st-np)+i,4] <- round(quantile(btmp2,probs=0.975,na.rm=TRUE),2)
+            verifparamax[(np*st-np)+i,5] <- round(quantile(sde1,probs=0.975,na.rm=TRUE),2)
+            verifparamax[(np*st-np)+i,6] <- round(quantile(sde2,probs=0.975,na.rm=TRUE),2)
+             }
+        }
+	
+# MSLP / PSS
+        if (pv[i]=="PSS") {
+            obs <- x$PS.obs
+            fc1 <- x$PS.fc1
+            fc2 <- x$PS.fc2
+            
+            k <- (obs >= 0. & fc1 >= 0. & fc2 >= 0.)
+            
+            obs <- obs[k]
+            obs <- ifelse(obs > 2000., obs/100,obs)      # some pss-obs are given in Pa, some in hPa
+            fc1 <- fc1[k]
+            fc2 <- fc2[k]
+
+            if (length(obs) > 100) {
+            verifpara[(np*st-np)+i,3] <- round(mean(fc1-obs),2)
+            verifpara[(np*st-np)+i,4] <- round(mean(fc2-obs),2)
+            verifpara[(np*st-np)+i,5] <- round(sd(fc1-obs),2)
+            verifpara[(np*st-np)+i,6] <- round(sd(fc2-obs),2)
+
+                     
+# confidence intervals:
+        rn <- 500
+        btmp1 <- array(NA,rn)
+        btmp2 <- array(NA,rn)
+        sde1 <- array(NA,rn)
+        sde2 <- array(NA,rn)
+        for (rs in 1:rn) {
+            k <- sample(1:length(obs),length(obs),replace=TRUE)
+            btmp1[rs] <- round(mean(fc1[k]-obs[k]),2)
+            btmp2[rs] <- round(mean(fc2[k]-obs[k]),2)
+            sde1[rs] <- round(sd(fc1[k]-obs[k]),2)
+            sde2[rs] <- round(sd(fc2[k]-obs[k]),2)
+        }
+            verifparamin[(np*st-np)+i,3] <- round(quantile(btmp1,probs=0.025,na.rm=TRUE),2)
+            verifparamin[(np*st-np)+i,4] <- round(quantile(btmp2,probs=0.025,na.rm=TRUE),2)
+            verifparamin[(np*st-np)+i,5] <- round(quantile(sde1,probs=0.025,na.rm=TRUE),2)
+            verifparamin[(np*st-np)+i,6] <- round(quantile(sde2,probs=0.025,na.rm=TRUE),2)
+            verifparamax[(np*st-np)+i,3] <- round(quantile(btmp1,probs=0.975,na.rm=TRUE),2)
+            verifparamax[(np*st-np)+i,4] <- round(quantile(btmp2,probs=0.975,na.rm=TRUE),2)
+            verifparamax[(np*st-np)+i,5] <- round(quantile(sde1,probs=0.975,na.rm=TRUE),2)
+            verifparamax[(np*st-np)+i,6] <- round(quantile(sde2,probs=0.975,na.rm=TRUE),2)
+            }
+        }
+# RH
+        if (pv[i]=="RH") {
+            obs <- x$RH.obs
+            fc1 <- x$RH.fc1
+            fc2 <- x$RH.fc2
+            
+            obs <- ifelse(obs > 100., 100., obs)
+            fc1 <- ifelse(fc1 > 100., 100., fc1)
+            fc2 <- ifelse(fc2 > 100., 100., fc2)
+            
+            k <- (obs >= 0. & fc1 >= 0. & fc2 >= 0.)
+            
+            obs <- obs[k]
+            fc1 <- fc1[k]
+            fc2 <- fc2[k]
+             if (length(obs) > 100) {
+            verifpara[(np*st-np)+i,3] <- round(mean(fc1-obs),2)
+            verifpara[(np*st-np)+i,4] <- round(mean(fc2-obs),2)
+            verifpara[(np*st-np)+i,5] <- round(sd(fc1-obs),2)
+            verifpara[(np*st-np)+i,6] <- round(sd(fc2-obs),2)
+
+                     
+# confidence intervals:
+        rn <- 500
+        btmp1 <- array(NA,rn)
+        btmp2 <- array(NA,rn)
+        sde1 <- array(NA,rn)
+        sde2 <- array(NA,rn)
+        for (rs in 1:rn) {
+            k <- sample(1:length(obs),length(obs),replace=TRUE)
+            btmp1[rs] <- round(mean(fc1[k]-obs[k]),2)
+            btmp2[rs] <- round(mean(fc2[k]-obs[k]),2)
+            sde1[rs] <- round(sd(fc1[k]-obs[k]),2)
+            sde2[rs] <- round(sd(fc2[k]-obs[k]),2)
+        }
+            verifparamin[(np*st-np)+i,3] <- round(quantile(btmp1,probs=0.025,na.rm=TRUE),2)
+            verifparamin[(np*st-np)+i,4] <- round(quantile(btmp2,probs=0.025,na.rm=TRUE),2)
+            verifparamin[(np*st-np)+i,5] <- round(quantile(sde1,probs=0.025,na.rm=TRUE),2)
+            verifparamin[(np*st-np)+i,6] <- round(quantile(sde2,probs=0.025,na.rm=TRUE),2)
+            verifparamax[(np*st-np)+i,3] <- round(quantile(btmp1,probs=0.975,na.rm=TRUE),2)
+            verifparamax[(np*st-np)+i,4] <- round(quantile(btmp2,probs=0.975,na.rm=TRUE),2)
+            verifparamax[(np*st-np)+i,5] <- round(quantile(sde1,probs=0.975,na.rm=TRUE),2)
+            verifparamax[(np*st-np)+i,6] <- round(quantile(sde2,probs=0.975,na.rm=TRUE),2)
+             }
+        }
+# QQ
+        if (pv[i]=="QQ") {
+            obs <- x$QQ.obs
+            fc1 <- x$QQ.fc1
+            fc2 <- x$QQ.fc2
+            
+            obs <- ifelse(obs > 100., 100., obs)
+            fc1 <- ifelse(fc1 > 100., 100., fc1)
+            fc2 <- ifelse(fc2 > 100., 100., fc2)
+            
+            k <- (obs >= 0. & fc1 >= 0. & fc2 >= 0.)
+            
+            obs <- obs[k]
+            fc1 <- fc1[k]
+            fc2 <- fc2[k]
+             if (length(obs) > 100) {
+            verifpara[(np*st-np)+i,3] <- round(mean(fc1-obs)*1000,2)
+            verifpara[(np*st-np)+i,4] <- round(mean(fc2-obs)*1000,2)
+            verifpara[(np*st-np)+i,5] <- round(sd(fc1-obs)*1000,2)
+            verifpara[(np*st-np)+i,6] <- round(sd(fc2-obs)*1000,2)
+                     
+# confidence intervals:
+        rn <- 500
+        btmp1 <- array(NA,rn)
+        btmp2 <- array(NA,rn)
+        sde1 <- array(NA,rn)
+        sde2 <- array(NA,rn)
+        for (rs in 1:rn) {
+            k <- sample(1:length(obs),length(obs),replace=TRUE)
+            btmp1[rs] <- round(mean(fc1[k]-obs[k])*1000,2)
+            btmp2[rs] <- round(mean(fc2[k]-obs[k])*1000,2)
+            sde1[rs] <- round(sd(fc1[k]-obs[k])*1000,2)
+            sde2[rs] <- round(sd(fc2[k]-obs[k])*1000,2)
+        }
+            
+            verifparamin[(np*st-np)+i,3] <- round(quantile(btmp1,probs=0.025,na.rm=TRUE),2)
+            verifparamin[(np*st-np)+i,4] <- round(quantile(btmp2,probs=0.025,na.rm=TRUE),2)
+            verifparamin[(np*st-np)+i,5] <- round(quantile(sde1,probs=0.025,na.rm=TRUE),2)
+            verifparamin[(np*st-np)+i,6] <- round(quantile(sde2,probs=0.025,na.rm=TRUE),2)
+            verifparamax[(np*st-np)+i,3] <- round(quantile(btmp1,probs=0.975,na.rm=TRUE),2)
+            verifparamax[(np*st-np)+i,4] <- round(quantile(btmp2,probs=0.975,na.rm=TRUE),2)
+            verifparamax[(np*st-np)+i,5] <- round(quantile(sde1,probs=0.975,na.rm=TRUE),2)
+            verifparamax[(np*st-np)+i,6] <- round(quantile(sde2,probs=0.975,na.rm=TRUE),2)
+             }
+        }
+    }
+}   # slist
+
+verifout <- data.frame(verifpara)
+verifoutmin <- data.frame(verifparamin)
+verifoutmax <- data.frame(verifparamax)
+names(verifout) <- c("STLIST","PARA","m1bias","m2bias","m1std","m2std")
+
+k <- !is.na(verifout$m1bias) | !is.na(verifout$m2bias)
+verifout <- verifout[k,]
+
+!is.na(verifoutmin$X3) | !is.na(verifoutmin$X5)
+verifoutmin <- verifoutmin[k,]
+
+!is.na(verifoutmax$X3) | !is.na(verifoutmax$X5)
+verifoutmax <- verifoutmax[k,]
+
+
+####################################################################################
+# Prepare Scorecard ################################################################
+####################################################################################
+#install.packages("gridExtra", lib="/home/morteno/Rpackages")
+#library(gridExtra, lib="/home/morteno/Rpackages")
+#library(grid, lib="/home/morteno/Rpackages")
+
+
+#threshcol1 <- 1.20   # % difference to color box in scorecard 1.20 = 20%
+#threshcol2 <- 0.25   # absolute difference to color box in scorecard, i.e. used for biases
+
+#Temperature;
+if ("TT" %in% pv) {
+k <- as.character(verifout$PARA)=="TT"
+pd <- verifout[k,c(1,5,6,3,4)]
+#pd <- verifout[k,c(1,1,1,1,1)] 
+
+print(pd)
+print("end")
+
+#pd <- data.frame(verifout[c(1,7,13,19,25,31,37,43,49,55),c(1,5,6,3,4)])
+names(pd) <- c("TT.in.region","nea.std","ec9.std","nea.bias","ec9.bias")
+
+#pdmin <- data.frame(verifoutmin[c(1,7,13,19,25,31,37,43,49,55),c(1,5,6,3,4)])
+#pdmax <- data.frame(verifoutmax[c(1,7,13,19,25,31,37,43,49,55),c(1,5,6,3,4)])
+pdmin <- data.frame(verifoutmin[k,c(1,5,6,3,4)])
+pdmax <- data.frame(verifoutmax[k,c(1,5,6,3,4)])
+names(pd) <- c("TT.in.region","nea.std","ec9.std","nea.bias","ec9.bias")
+names(pdmin) <- c("TT.in.region","nea.std","ec9.std","nea.bias","ec9.bias")
+names(pdmax) <- c("TT.in.region","nea.std","ec9.std","nea.bias","ec9.bias")
+
+## significance check; are there overlap in 95%-confidence interval, if not set to FALSE
+
+signi <- data.frame(matrix(NA,dim(pd)[1],dim(pd)[2]))
+
+signi[,2] <- ifelse(as.numeric(as.character(pdmax[,2])) < as.numeric(as.character(pdmin[,3])) |
+                    as.numeric(as.character(pdmin[,2])) > as.numeric(as.character(pdmax[,3])),TRUE,FALSE) 
+signi[,3] <- signi[,2]
+signi[,4] <- ifelse(as.numeric(as.character(pdmax[,4])) < as.numeric(as.character(pdmin[,5])) |
+                    as.numeric(as.character(pdmin[,4])) > as.numeric(as.character(pdmax[,5])),TRUE,FALSE) 
+signi[,5] <- signi[,4]
+
+
+##
+print("before")
+print(pd)
+print("printed")
+print(substring(pd[,1],1,7))
+print(substring(as.character(pd[,1]),8,30))
+print(substring(as.character(pd[,1]),1,30))
+pd[,1] <- ifelse (substring(pd[,1],1,7)=="Denmark", substring(as.character(pd[,1]),8,30),substring(as.character(pd[,1]),1,30))
+
+#cat("first element ",pd[,1],"\n")
+pdpara <- cbind(pd[1],sapply(pd[2:5], function(x) {as.numeric(as.character(x))}))
+pd <- pdpara
+print("first occ")
+print(dim(pd))
+#pd <- na.omit(pd) #omit missing values
+
+cols <- matrix("black", nrow(pd), ncol(pd))
+colsfill <- matrix("lightgrey", nrow(pd), ncol(pd))
+print(dim(cols))
+print(dim(colsfill))
+for (i in 1:dim(pd)[1]) {
+    cat("check i: ",i," ",pd[i,1],"\n")
+}
+for (i in 1:dim(pd)[1]) {
+    #if (!is.na(pd[i,2])) print("NA")
+    #if (is.na(pd[i,3])) print("NA 2")
+    cat("i = ",i,"\n")
+    if (pd[i,2] < pd[i,3]) cols[i,1:3] <- c("black","darkgreen", "red")
+    if (pd[i,2] > pd[i,3]) cols[i,1:3] <- c("black","red", "darkgreen")
+    colsfill[i,1:3] <- c("lightgrey","lightgrey", "lightgrey")
+    if (pd[i,3]/pd[i,2]  > threshcol1) colsfill[i,1:3] <- c("lightgrey","green", "pink")
+    if (pd[i,2]/pd[i,3] > threshcol1) colsfill[i,1:3] <- c("lightgrey","pink", "green")
+    #BIAS
+    if (abs(pd[i,4]) < abs(pd[i,5])) cols[i,4:5] <- c("darkgreen", "red")
+    if (abs(pd[i,4]) > abs(pd[i,5])) cols[i,4:5] <- c("red", "darkgreen")
+    colsfill[i,4:5] <- c("lightgrey", "lightgrey")
+    if (abs(pd[i,4]) + threshcol2 < abs(pd[i,5])) colsfill[i,4:5] <- c("green", "pink")
+    if (abs(pd[i,4]) > abs(pd[i,5]) + threshcol2 ) colsfill[i,4:5] <- c("pink", "green")
+}
+
+print("passed loop")
+tt <- ttheme_default(core=list(fg_params = list(col = cols),
+                                bg_params = list(fill=colsfill)),
+                      rowhead=list(bg_params = list(col=NA)),
+                     colhead=list(bg_params = list(col=NA)))
+pdTT <- pd
+ttTT <- tt
+signiTT <- signi
+}
+
+#Temperature HC;
+print("now for TTHC")
+if ("TTHC" %in% pv) {
+    
+k <- as.character(verifout$PARA)=="TTHC"
+pd <- verifout[k,c(1,5,6,3,4)]
+
+#pd <- data.frame(verifout[c(2,8,14,20,26,32,38,44,50,56),c(1,5,6,3,4)])
+names(pd) <- c("TTHC.in.region","nea.std","ec9.std","nea.bias","ec9.bias")
+
+#pdmin <- data.frame(verifoutmin[c(2,8,14,20,26,32,38,44,50,56),c(1,5,6,3,4)])
+#pdmax <- data.frame(verifoutmax[c(2,8,14,20,26,32,38,44,50,56),c(1,5,6,3,4)])
+pdmin <- data.frame(verifoutmin[k,c(1,5,6,3,4)])
+pdmax <- data.frame(verifoutmax[k,c(1,5,6,3,4)])
+names(pd) <- c("TTHC.in.region","nea.std","ec9.std","nea.bias","ec9.bias")
+names(pdmin) <- c("TTHC.in.region","nea.std","ec9.std","nea.bias","ec9.bias")
+names(pdmax) <- c("TTHC.in.region","nea.std","ec9.std","nea.bias","ec9.bias")
+
+## significance check
+
+signi <- data.frame(matrix(NA,dim(pd)[1],dim(pd)[2]))
+
+signi[,2] <- ifelse(as.numeric(as.character(pdmax[,2])) < as.numeric(as.character(pdmin[,3])) |
+                    as.numeric(as.character(pdmin[,2])) > as.numeric(as.character(pdmax[,3])),TRUE,FALSE) 
+signi[,3] <- signi[,2]
+signi[,4] <- ifelse(as.numeric(as.character(pdmax[,4])) < as.numeric(as.character(pdmin[,5])) |
+                    as.numeric(as.character(pdmin[,4])) > as.numeric(as.character(pdmax[,5])),TRUE,FALSE) 
+signi[,5] <- signi[,4]
+
+
+##
+
+pd[,1] <- ifelse (substring(pd[,1],1,7)=="Denmark", substring(as.character(pd[,1]),8,30),substring(as.character(pd[,1]),1,30))
+
+pdpara <- cbind(pd[1],sapply(pd[2:5], function(x) {as.numeric(as.character(x))}))
+pd <- pdpara
+
+cols <- matrix("black", nrow(pd), ncol(pd))
+colsfill <- matrix("lightgrey", nrow(pd), ncol(pd))
+
+for (i in 1:dim(pd)[1]) {
+    if (pd[i,2] < pd[i,3]) cols[i,1:3] <- c("black","darkgreen", "red")
+    if (pd[i,2] > pd[i,3]) cols[i,1:3] <- c("black","red", "darkgreen")
+    colsfill[i,1:3] <- c("lightgrey","lightgrey", "lightgrey")
+    if (pd[i,3]/pd[i,2]  > threshcol1) colsfill[i,1:3] <- c("lightgrey","green", "pink")
+    if (pd[i,2]/pd[i,3] > threshcol1) colsfill[i,1:3] <- c("lightgrey","pink", "green")
+    #BIAS
+    if (abs(pd[i,4]) < abs(pd[i,5])) cols[i,4:5] <- c("darkgreen", "red")
+    if (abs(pd[i,4]) > abs(pd[i,5])) cols[i,4:5] <- c("red", "darkgreen")
+    colsfill[i,4:5] <- c("lightgrey", "lightgrey")
+    if (abs(pd[i,4]) + threshcol2 < abs(pd[i,5])) colsfill[i,4:5] <- c("green", "pink")
+    if (abs(pd[i,4]) > abs(pd[i,5]) + threshcol2 ) colsfill[i,4:5] <- c("pink", "green")
+}
+
+tt <- ttheme_default(core=list(fg_params = list(col = cols),
+                                bg_params = list(fill=colsfill)),
+                      rowhead=list(bg_params = list(col=NA)),
+                     colhead=list(bg_params = list(col=NA)))
+pdTTHC <- pd
+ttTTHC <- tt
+signiTTHC <- signi
+}
+######## FF
+if ("FF" %in% pv) {
+k <- as.character(verifout$PARA)=="FF"
+pd <- verifout[k,c(1,5,6,3,4)]
+
+#pd <- verifout[c(4,10,16,22,28,34,40,46,52,58),c(1,5,6,3,4)]
+names(pd) <- c("FF.in.region","nea.std","ec9.std","nea.bias","ec9.bias")
+
+#pdmin <- data.frame(verifoutmin[c(4,10,16,22,28,34,40,46,52,58),c(1,5,6,3,4)])
+#pdmax <- data.frame(verifoutmax[c(4,10,16,22,28,34,40,46,52,58),c(1,5,6,3,4)])
+pdmin <- data.frame(verifoutmin[k,c(1,5,6,3,4)])
+pdmax <- data.frame(verifoutmax[k,c(1,5,6,3,4)])
+names(pdmin) <- c("FF.in.region","nea.std","ec9.std","nea.bias","ec9.bias")
+names(pdmax) <- c("FF.in.region","nea.std","ec9.std","nea.bias","ec9.bias")
+
+## significance check
+
+signi <- data.frame(matrix(NA,dim(pd)[1],dim(pd)[2]))
+
+signi[,2] <- ifelse(as.numeric(as.character(pdmax[,2])) < as.numeric(as.character(pdmin[,3])) |
+                    as.numeric(as.character(pdmin[,2])) > as.numeric(as.character(pdmax[,3])),TRUE,FALSE) 
+signi[,3] <- signi[,2]
+signi[,4] <- ifelse(as.numeric(as.character(pdmax[,4])) < as.numeric(as.character(pdmin[,5])) |
+                    as.numeric(as.character(pdmin[,4])) > as.numeric(as.character(pdmax[,5])),TRUE,FALSE) 
+signi[,5] <- signi[,4]
+
+
+##
+pd[,1] <- ifelse (substring(pd[,1],1,7)=="Denmark", substring(as.character(pd[,1]),8,30),substring(as.character(pd[,1]),1,30))
+
+pdpara <- cbind(pd[1],sapply(pd[2:5], function(x) {as.numeric(as.character(x))}))
+pd <- pdpara
+
+cols <- matrix("black", nrow(pd), ncol(pd))
+colsfill <- matrix("lightgrey", nrow(pd), ncol(pd))
+
+
+for (i in 1:dim(pd)[1]) {
+    if (pd[i,2] < pd[i,3]) cols[i,1:3] <- c("black","darkgreen", "red")
+    if (pd[i,2] > pd[i,3]) cols[i,1:3] <- c("black","red", "darkgreen")
+    colsfill[i,1:3] <- c("lightgrey","lightgrey", "lightgrey")
+    if (pd[i,3]/pd[i,2]  > threshcol1) colsfill[i,1:3] <- c("lightgrey","green", "pink")
+    if (pd[i,2]/pd[i,3] > threshcol1) colsfill[i,1:3] <- c("lightgrey","pink", "green")
+    #BIAS
+    if (abs(pd[i,4]) < abs(pd[i,5])) cols[i,4:5] <- c("darkgreen", "red")
+    if (abs(pd[i,4]) > abs(pd[i,5])) cols[i,4:5] <- c("red", "darkgreen")
+    colsfill[i,4:5] <- c("lightgrey", "lightgrey")
+    if (abs(pd[i,4]) + threshcol2 < abs(pd[i,5])) colsfill[i,4:5] <- c("green", "pink")
+    if (abs(pd[i,4]) > abs(pd[i,5]) + threshcol2 ) colsfill[i,4:5] <- c("pink", "green")
+}
+
+tt <- ttheme_default(core=list(fg_params = list(col = cols),
+                                bg_params = list(fill=colsfill)),
+                      rowhead=list(bg_params = list(col=NA)),
+                     colhead=list(bg_params = list(col=NA)))
+pdFF <- pd
+ttFF <- tt
+signiFF <- signi
+
+}
+print("2nd occ")
+######## MSLP
+if ("PSS" %in% pv) {
+k <- as.character(verifout$PARA)=="PSS"
+pd <- verifout[k,c(1,5,6,3,4)]
+
+#pd <- verifout[c(3,9,15,21,27,33,45,51,57),c(1,5,6,3,4)]
+#pd <- verifout[c(3,9,15,21,27),c(1,5,6,3,4)]
+names(pd) <- c("MSLP.in.region","nea.std","ec9.std","nea.bias","ec9.bias")
+
+#pdmin <- data.frame(verifoutmin[c(3,9,15,21,27,33,45,51,57),c(1,5,6,3,4)])
+#pdmax <- data.frame(verifoutmax[c(3,9,15,21,27,33,45,51,57),c(1,5,6,3,4)])
+pdmin <- data.frame(verifoutmin[k,c(1,5,6,3,4)])
+pdmax <- data.frame(verifoutmax[k,c(1,5,6,3,4)])
+names(pdmin) <- c("MSLP.in.region","nea.std","ec9.std","nea.bias","ec9.bias")
+names(pdmax) <- c("MSLP.in.region","nea.std","ec9.std","nea.bias","ec9.bias")
+
+## significance check
+
+signi <- data.frame(matrix(NA,dim(pd)[1],dim(pd)[2]))
+
+signi[,2] <- ifelse(as.numeric(as.character(pdmax[,2])) < as.numeric(as.character(pdmin[,3])) |
+                    as.numeric(as.character(pdmin[,2])) > as.numeric(as.character(pdmax[,3])),TRUE,FALSE) 
+signi[,3] <- signi[,2]
+signi[,4] <- ifelse(as.numeric(as.character(pdmax[,4])) < as.numeric(as.character(pdmin[,5])) |
+                    as.numeric(as.character(pdmin[,4])) > as.numeric(as.character(pdmax[,5])),TRUE,FALSE) 
+signi[,5] <- signi[,4]
+
+#
+pd[,1] <- ifelse (substring(pd[,1],1,7)=="Denmark", substring(as.character(pd[,1]),8,30),substring(as.character(pd[,1]),1,30))
+
+pdpara <- cbind(pd[1],sapply(pd[2:5], function(x) {as.numeric(as.character(x))}))
+pd <- pdpara
+
+cols <- matrix("black", nrow(pd), ncol(pd))
+colsfill <- matrix("lightgrey", nrow(pd), ncol(pd))
+
+for (i in 1:dim(pd)[1]) {
+    if (pd[i,2] < pd[i,3]) cols[i,1:3] <- c("black","darkgreen", "red")
+    if (pd[i,2] > pd[i,3]) cols[i,1:3] <- c("black","red", "darkgreen")
+    colsfill[i,1:3] <- c("lightgrey","lightgrey", "lightgrey")
+    if (pd[i,3]/pd[i,2]  > threshcol1) colsfill[i,1:3] <- c("lightgrey","green", "pink")
+    if (pd[i,2]/pd[i,3] > threshcol1) colsfill[i,1:3] <- c("lightgrey","pink", "green")
+    #BIAS
+    if (abs(pd[i,4]) < abs(pd[i,5])) cols[i,4:5] <- c("darkgreen", "red")
+    if (abs(pd[i,4]) > abs(pd[i,5])) cols[i,4:5] <- c("red", "darkgreen")
+    colsfill[i,4:5] <- c("lightgrey", "lightgrey")
+    if (abs(pd[i,4]) + threshcol2 < abs(pd[i,5])) colsfill[i,4:5] <- c("green", "pink")
+    if (abs(pd[i,4]) > abs(pd[i,5]) + threshcol2 ) colsfill[i,4:5] <- c("pink", "green")
+}
+
+tt <- ttheme_default(core=list(fg_params = list(col = cols),
+                                bg_params = list(fill=colsfill)),
+                      rowhead=list(bg_params = list(col=NA)),
+                     colhead=list(bg_params = list(col=NA)))
+pdMSLP <- pd
+ttMSLP <- tt
+signiMSLP  <- signi
+}
+######## RH
+if ("RH" %in% pv) {
+k <- as.character(verifout$PARA)=="RH"
+pd <- verifout[k,c(1,5,6,3,4)]
+
+#pd <- verifout[c(5,11,17,23,29,35,41,47,53,59),c(1,5,6,3,4)]
+names(pd) <- c("RH.in.region","nea.std","ec9.std","nea.bias","ec9.bias")
+
+#pdmin <- data.frame(verifoutmin[c(5,11,17,23,29,35,41,47,53,59),c(1,5,6,3,4)])
+#pdmax <- data.frame(verifoutmax[c(5,11,17,23,29,35,41,47,53,59),c(1,5,6,3,4)])
+pdmin <- data.frame(verifoutmin[k,c(1,5,6,3,4)])
+pdmax <- data.frame(verifoutmax[k,c(1,5,6,3,4)])
+names(pdmin) <- c("RH.in.region","nea.std","ec9.std","nea.bias","ec9.bias")
+names(pdmax) <- c("RH.in.region","nea.std","ec9.std","nea.bias","ec9.bias")
+
+## significance check
+
+signi <- data.frame(matrix(NA,dim(pd)[1],dim(pd)[2]))
+
+signi[,2] <- ifelse(as.numeric(as.character(pdmax[,2])) < as.numeric(as.character(pdmin[,3])) |
+                    as.numeric(as.character(pdmin[,2])) > as.numeric(as.character(pdmax[,3])),TRUE,FALSE) 
+signi[,3] <- signi[,2]
+signi[,4] <- ifelse(as.numeric(as.character(pdmax[,4])) < as.numeric(as.character(pdmin[,5])) |
+                    as.numeric(as.character(pdmin[,4])) > as.numeric(as.character(pdmax[,5])),TRUE,FALSE) 
+signi[,5] <- signi[,4]
+
+
+##
+pd[,1] <- ifelse (substring(pd[,1],1,7)=="Denmark", substring(as.character(pd[,1]),8,30),substring(as.character(pd[,1]),1,30))
+
+pdpara <- cbind(pd[1],sapply(pd[2:5], function(x) {as.numeric(as.character(x))}))
+pd <- pdpara
+
+cols <- matrix("black", nrow(pd), ncol(pd))
+colsfill <- matrix("lightgrey", nrow(pd), ncol(pd))
+
+for (i in 1:dim(pd)[1]) {
+    if (pd[i,2] < pd[i,3]) cols[i,1:3] <- c("black","darkgreen", "red")
+    if (pd[i,2] > pd[i,3]) cols[i,1:3] <- c("black","red", "darkgreen")
+    colsfill[i,1:3] <- c("lightgrey","lightgrey", "lightgrey")
+    if (pd[i,3]/pd[i,2]  > threshcol1) colsfill[i,1:3] <- c("lightgrey","green", "pink")
+    if (pd[i,2]/pd[i,3] > threshcol1) colsfill[i,1:3] <- c("lightgrey","pink", "green")
+    #BIAS
+    if (abs(pd[i,4]) < abs(pd[i,5])) cols[i,4:5] <- c("darkgreen", "red")
+    if (abs(pd[i,4]) > abs(pd[i,5])) cols[i,4:5] <- c("red", "darkgreen")
+    colsfill[i,4:5] <- c("lightgrey", "lightgrey")
+    if (abs(pd[i,4]) + threshcol2 < abs(pd[i,5])) colsfill[i,4:5] <- c("green", "pink")
+    if (abs(pd[i,4]) > abs(pd[i,5]) + threshcol2 ) colsfill[i,4:5] <- c("pink", "green")
+}
+
+tt <- ttheme_default(core=list(fg_params = list(col = cols),
+                                bg_params = list(fill=colsfill)),
+                      rowhead=list(bg_params = list(col=NA)),
+                     colhead=list(bg_params = list(col=NA)))
+
+pdRH <- pd
+ttRH <- tt
+signiRH <- signi
+}
+
+
+######## QQ
+
+if ("QQ" %in% pv) {
+k <- as.character(verifout$PARA)=="QQ"
+pd <- verifout[k,c(1,5,6,3,4)]
+
+#pd <- verifout[c(6,12,18,24,30,36,42,48,54,60),c(1,5,6,3,4)]
+names(pd) <- c("QQ.in.region","nea.std","ec9.std","nea.bias","ec9.bias")
+
+#pdmin <- data.frame(verifoutmin[c(6,12,18,24,30,36,42,48,54,60),c(1,5,6,3,4)])
+#pdmax <- data.frame(verifoutmax[c(6,12,18,24,30,36,42,48,54,60),c(1,5,6,3,4)])
+pdmin <- data.frame(verifoutmin[k,c(1,5,6,3,4)])
+pdmax <- data.frame(verifoutmax[k,c(1,5,6,3,4)])
+names(pdmin) <- c("QQ.in.region","nea.std","ec9.std","nea.bias","ec9.bias")
+names(pdmax) <- c("QQ.in.region","nea.std","ec9.std","nea.bias","ec9.bias")
+
+## significance check
+
+signi <- data.frame(matrix(NA,dim(pd)[1],dim(pd)[2]))
+
+signi[,2] <- ifelse(as.numeric(as.character(pdmax[,2])) < as.numeric(as.character(pdmin[,3])) |
+                    as.numeric(as.character(pdmin[,2])) > as.numeric(as.character(pdmax[,3])),TRUE,FALSE) 
+signi[,3] <- signi[,2]
+signi[,4] <- ifelse(as.numeric(as.character(pdmax[,4])) < as.numeric(as.character(pdmin[,5])) |
+                    as.numeric(as.character(pdmin[,4])) > as.numeric(as.character(pdmax[,5])),TRUE,FALSE) 
+signi[,5] <- signi[,4]
+
+
+##
+pd[,1] <- ifelse (substring(pd[,1],1,7)=="Denmark", substring(as.character(pd[,1]),8,30),substring(as.character(pd[,1]),1,30))
+
+pdpara <- cbind(pd[1],sapply(pd[2:5], function(x) {as.numeric(as.character(x))}))
+pd <- pdpara
+
+cols <- matrix("black", nrow(pd), ncol(pd))
+colsfill <- matrix("lightgrey", nrow(pd), ncol(pd))
+
+for (i in 1:dim(pd)[1]) {
+    if (pd[i,2] < pd[i,3]) cols[i,1:3] <- c("black","darkgreen", "red")
+    if (pd[i,2] > pd[i,3]) cols[i,1:3] <- c("black","red", "darkgreen")
+    colsfill[i,1:3] <- c("lightgrey","lightgrey", "lightgrey")
+    if (pd[i,3]/pd[i,2]  > threshcol1) colsfill[i,1:3] <- c("lightgrey","green", "pink")
+    if (pd[i,2]/pd[i,3] > threshcol1) colsfill[i,1:3] <- c("lightgrey","pink", "green")
+    #BIAS
+    if (abs(pd[i,4]) < abs(pd[i,5])) cols[i,4:5] <- c("darkgreen", "red")
+    if (abs(pd[i,4]) > abs(pd[i,5])) cols[i,4:5] <- c("red", "darkgreen")
+    colsfill[i,4:5] <- c("lightgrey", "lightgrey")
+    if (abs(pd[i,4]) + threshcol2 < abs(pd[i,5])) colsfill[i,4:5] <- c("green", "pink")
+    if (abs(pd[i,4]) > abs(pd[i,5]) + threshcol2 ) colsfill[i,4:5] <- c("pink", "green")
+}
+
+tt <- ttheme_default(core=list(fg_params = list(col = cols),
+                                bg_params = list(fill=colsfill)),
+                      rowhead=list(bg_params = list(col=NA)),
+                     colhead=list(bg_params = list(col=NA)))
+
+pdQQ <- pd
+ttQQ <- tt
+signiQQ <- signi
+}
+
+####################################################################
+####################################################################
+
+#### PLOT:
+
+
+## version II
+
+#X11(height=18,width=12)
+filename <- paste("Summary.local.",min(xalldata$validdate),"-",max(xalldata$validdate),".pdf",sep="")
+
+pdf(filename,height=18,width=12)
+par(mfrow=c(2,4), mar=c(6,6,6,6), oma=c(2,2,2,2), cex=0.8, lwd=0.25)
+
+for (i in 1:dim(signiFF)[1]) {
+    for (j in 1:dim(signiFF)[2]) {
+        if (!is.na(signiMSLP[i,j])) {
+            pdMSLP[i,j] <- ifelse(signiMSLP[i,j]==TRUE,paste(pdMSLP[i,j],"*",sep=""),pdMSLP[i,j])
+        }
+        if (!is.na(signiFF[i,j])) {
+            pdFF[i,j] <- ifelse(signiFF[i,j]==TRUE,paste(pdFF[i,j],"*",sep=""),pdFF[i,j])
+        }
+        if (!is.na(signiTT[i,j])) {
+            pdTT[i,j] <- ifelse(signiTT[i,j]==TRUE,paste(pdTT[i,j],"*",sep=""),pdTT[i,j])
+        }
+        if (!is.na(signiTTHC[i,j])) {
+            pdTTHC[i,j] <- ifelse(signiTTHC[i,j]==TRUE,paste(pdTTHC[i,j],"*",sep=""),pdTTHC[i,j])
+        }
+        if (!is.na(signiRH[i,j])) {
+            pdRH[i,j] <- ifelse(signiRH[i,j]==TRUE,paste(pdRH[i,j],"*",sep=""),pdRH[i,j])
+        }
+    }
+}
+ 
+MSLP <- tableGrob(pdMSLP, theme=ttMSLP,rows=NULL)
+TT <- tableGrob(pdTT, theme=ttTT,rows=NULL)
+TTHC <- tableGrob(pdTTHC, theme=ttTTHC,rows=NULL)
+FF <- tableGrob(pdFF, theme=ttFF,rows=NULL)
+RH <- tableGrob(pdRH, theme=ttRH,rows=NULL)
+
+
+grid.arrange(
+    MSLP,
+    FF,
+    TT,
+    RH,
+    nrow=4,ncol=2)
+
+dev.off()
