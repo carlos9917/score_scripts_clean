@@ -45,13 +45,11 @@ threshcol2 <- 0.25   # absolute difference to color box in scorecard, i.e. used 
 
 ######################################################################################################################
 
-# R-packages needs to be downloaded and installed
-#install.packages("gridExtra", lib="/home/morteno/Rpackages")
-
+# R-packages. Download and install if not there already.
 library(gridExtra)
 library(grid)
 library(gtools)
-library(data.table)
+library(data.table) #only testing right now
 
 ##################################################################
 # read vobs-file (observations) from HARMONIE system           ###
@@ -77,153 +75,169 @@ obsfiles  <- lapply(obsfiles, scan, what="character")
 ####################################################################
 ####################################################################
 
-fc1tot <- NULL
-fc2tot <- NULL
-fc1 <- NULL
-fc2 <- NULL
-
-for (i in names(files)) {
-    cat("model: ",i," \n")
-    if (i=="nea") { 
-
-        for (ii in 1:length(files[[i]])) {
-            infile <- files[[i]][ii]
-            m <- paste(infile,sep="")            
-	    cat("reading  ",m, "\n")
-            #cat("file to read: ",m)
-            x <- readLines(m)
-            
-            l1 <- read.table(infile,fill=TRUE)
-            l1 <- as.numeric(as.character(l1[1,1]))
-            l2 <- as.numeric(x[2])+2
-            
-            d <- read.table(infile,skip=l2,fill=TRUE)
-            
-### find parameter names
-            par <- readLines(infile,n=l2)
-            para <- array(NA,l2-3)
-            for (k in 3:l2) {
-                para[k-2] <- substring(par,1,5)[k]
-            }
-            para <- gsub(" ", "", para, fixed = TRUE)
-###
-            
-            tot <- dim(d)[1]
-            k <- array(TRUE,tot)
-            
-            for (iii in 1:tot) {
-                if (iii > l1) k[iii] <- FALSE
-            }
-            fc1 <- d[k,]
-            names(fc1) <- c("WMO","LAT","LON",para)
-            fc1[,] <- lapply(fc1, function(x) {as.numeric(as.character(x))})
-	    fcfilename=basename(infile)
-	    #print(substring(fcfilename,8,17))
-	    #print(substring(infile,19,28))
-	    fc1$validdate <-(substring(fcfilename,8,17))
-            #fc1$validdate <- (substring(infile,19,28)) #BUG!
-	    #fc1$validdate <- (substring(infile,24,33))
-            #fc1$LT <- (substring(infile,34,35))
-	    #print(substring(infile,19,28))
-            #fc1$LT <- (substring(infile,29,30))
-	    fc1$LT <-(substring(fcfilename,18,19))
-	    #print(substring(infile,29,30))
- 
-	    #cat("validdate: ", fc1$validdate)
-        if ( !("FI" %in% names(fc1)) ) fc1$FI <- -99
-        if ( !("NN" %in% names(fc1)) ) fc1$NN <- -99
-    	if ( !("DD" %in% names(fc1)) ) fc1$DD <- -99
-    	if ( !("FF" %in% names(fc1)) ) fc1$FF <- -99
-    	if ( !("TT" %in% names(fc1)) ) fc1$TT <- -99
-    	if ( !("RH" %in% names(fc1)) ) fc1$RH <- -99
-    	if ( !("PS" %in% names(fc1)) ) fc1$PS <- -99
-    	if ( !("PE" %in% names(fc1)) ) fc1$PE <- -99
-    	if ( !("QQ" %in% names(fc1)) ) fc1$QQ <- -99
-    	if ( !("VI" %in% names(fc1)) ) fc1$VI <- -99
-    	if ( !("TD" %in% names(fc1)) ) fc1$TD <- -99
-    	if ( !("TX" %in% names(fc1)) ) fc1$TX <- -99
-        if ( !("TN" %in% names(fc1)) ) fc1$TN <- -99
-        if ( !("GX" %in% names(fc1)) ) fc1$GX <- -99
-
-            if (ii==1) fc1tot <- fc1
-            if (ii>1)  fc1tot <- rbind(fc1,fc1tot)
-	    #if (ii > 1) fc1tot <- smartbind(fc1,fc1tot)
-	    #if (ii > 1) fc1tot <- rbind(fc1, fc1tot[, names(fc1)])
-	    #if (ii > 1) fc1tot <-rbindlist(list(fc1,fc1tot), fill = TRUE)
-        
-        
-            
-        } 
-    }
-    if (i=="ec9") { 
-        for (ii in 1:length(files[[i]])) {
-            infile <- files[[i]][ii]
-            m <- paste(infile,sep="")            
-            #print(m)
-	    cat("reading ",m,"\n")
-            x <- readLines(m)
-            
-            l1 <- read.table(infile,fill=TRUE)
-            l1 <- as.numeric(as.character(l1[1,1]))
-            l2 <- as.numeric(x[2])+2
-            d <- read.table(infile,skip=l2,fill=TRUE)
-            
-### find parameter names
-            par <- readLines(infile,n=l2)
-            para <- array(NA,l2-3)
-            for (k in 3:l2) {
-                para[k-2] <- substring(par,1,5)[k]
-            }
-            para <- gsub(" ", "", para, fixed = TRUE)
-###
-            
-            tot <- dim(d)[1]
-            k <- array(TRUE,tot)
-            
-            for (iii in 1:tot) {
-                if (iii > l1) k[iii] <- FALSE
-            }
-            fc2 <- d[k,]
-            names(fc2) <- c("WMO","LAT","LON",para)
-            fc2[,] <- lapply(fc2, function(x) {as.numeric(as.character(x))})
-	    fcfilename=basename(infile)
-            #fc2$validdate <- (substring(infile,19,28)) #BUG!
-	    fc2$validdate <-(substring(fcfilename,8,17))
-	    fc2$LT <- (substring(fcfilename,18,19))
-	    cat("init ",fc2$LT,"\n")
-            #fc2$LT <- (substring(infile,29,30))
- 
-            if ( !("FI" %in% names(fc2)) ) fc2$FI <- -99
-    	    if ( !("NN" %in% names(fc2)) ) fc2$NN <- -99
-    	    if ( !("DD" %in% names(fc2)) ) fc2$DD <- -99
-    	    if ( !("FF" %in% names(fc2)) ) fc2$FF <- -99
-    	    if ( !("TT" %in% names(fc2)) ) fc2$TT <- -99
-    	    if ( !("RH" %in% names(fc2)) ) fc2$RH <- -99
-    	    if ( !("PS" %in% names(fc2)) ) fc2$PS <- -99
-    	    if ( !("PE" %in% names(fc2)) ) fc2$PE <- -99
-    	    if ( !("QQ" %in% names(fc2)) ) fc2$QQ <- -99
-    	    if ( !("VI" %in% names(fc2)) ) fc2$VI <- -99
-    	    if ( !("CH" %in% names(fc2)) ) fc2$CH <- -99
-        	if ( !("LC" %in% names(fc2)) ) fc2$LC <- -99
-    	    if ( !("TD" %in% names(fc2)) ) fc2$TD <- -99
-            if ( !("TX" %in% names(fc2)) ) fc2$TX <- -99
-            if ( !("TN" %in% names(fc2)) ) fc2$TN <- -99
-            if ( !("GG" %in% names(fc2)) ) fc2$GG <- -99
-            if ( !("GX" %in% names(fc2)) ) fc2$GX <- -99
-
-            if (ii==1) fc2tot <- fc2
-            if (ii>1)  fc2tot <- rbind(fc2,fc2tot) # this will fail the 2nd time bc second file has more cols
-	    #if (ii > 1) fc2tot <-rbindlist(list(fc2,fc2tot), fill = TRUE)
-            
-        } 
-    } 
-}
-
+#fc1tot <- NULL
+#fc2tot <- NULL
+#fc1 <- NULL
+#fc2 <- NULL
+#iname <- 0
+#list_vars<-c()
+#for (i in names(files)) {
+#	iname <- iname + 1
+#    #Poor attempt to generalize this:	
+#    #cat("model: ",i," \n")
+#    #source("get_model_data.R")
+#    #model_data <- paste("model",i,sep="_")
+#    #assign(model_data, get_model_data(files[i]))
+#    #print(model_data)
+#    #list_vars<-c(list_vars,model_data)
+#    if (i=="nea") { 
+#
+#        for (ii in 1:length(files[[i]])) {
+#            infile <- files[[i]][ii]
+#            m <- paste(infile,sep="")            
+#	    cat("reading  ",m, "\n")
+#            x <- readLines(m)
+#            
+#            l1 <- read.table(infile,fill=TRUE)
+#            l1 <- as.numeric(as.character(l1[1,1]))
+#            l2 <- as.numeric(x[2])+2
+#            
+#            d <- read.table(infile,skip=l2,fill=TRUE)
+#            
+#### find parameter names
+#            par <- readLines(infile,n=l2)
+#            para <- array(NA,l2-3)
+#            for (k in 3:l2) {
+#                para[k-2] <- substring(par,1,5)[k]
+#            }
+#            para <- gsub(" ", "", para, fixed = TRUE)
+####
+#            
+#            tot <- dim(d)[1]
+#            k <- array(TRUE,tot)
+#            
+#            for (iii in 1:tot) {
+#                if (iii > l1) k[iii] <- FALSE
+#            }
+#            fc1 <- d[k,]
+#            names(fc1) <- c("WMO","LAT","LON",para)
+#            fc1[,] <- lapply(fc1, function(x) {as.numeric(as.character(x))})
+#	    fcfilename=basename(infile)
+#	    fc1$validdate <-(substring(fcfilename,8,17))
+#	    fc1$LT <-(substring(fcfilename,18,19))
+#        if ( !("FI" %in% names(fc1)) ) fc1$FI <- -99
+#        if ( !("NN" %in% names(fc1)) ) fc1$NN <- -99
+#    	if ( !("DD" %in% names(fc1)) ) fc1$DD <- -99
+#    	if ( !("FF" %in% names(fc1)) ) fc1$FF <- -99
+#    	if ( !("TT" %in% names(fc1)) ) fc1$TT <- -99
+#    	if ( !("RH" %in% names(fc1)) ) fc1$RH <- -99
+#    	if ( !("PS" %in% names(fc1)) ) fc1$PS <- -99
+#    	if ( !("PE" %in% names(fc1)) ) fc1$PE <- -99
+#    	if ( !("QQ" %in% names(fc1)) ) fc1$QQ <- -99
+#    	if ( !("VI" %in% names(fc1)) ) fc1$VI <- -99
+#    	if ( !("TD" %in% names(fc1)) ) fc1$TD <- -99
+#    	if ( !("TX" %in% names(fc1)) ) fc1$TX <- -99
+#        if ( !("TN" %in% names(fc1)) ) fc1$TN <- -99
+#        if ( !("GX" %in% names(fc1)) ) fc1$GX <- -99
+#
+#            if (ii==1) fc1tot <- fc1
+#            if (ii>1)  fc1tot <- rbind(fc1,fc1tot)
+#	    #if (ii > 1) fc1tot <- smartbind(fc1,fc1tot)
+#	    #if (ii > 1) fc1tot <- rbind(fc1, fc1tot[, names(fc1)])
+#	    #if (ii > 1) fc1tot <-rbindlist(list(fc1,fc1tot), fill = TRUE)
+#        
+#        
+#            
+#        } 
+#    }
+#    if (i=="ec9") { 
+#        for (ii in 1:length(files[[i]])) {
+#            infile <- files[[i]][ii]
+#            m <- paste(infile,sep="")            
+#            #print(m)
+#	    cat("reading ",m,"\n")
+#            x <- readLines(m)
+#            
+#            l1 <- read.table(infile,fill=TRUE)
+#            l1 <- as.numeric(as.character(l1[1,1]))
+#            l2 <- as.numeric(x[2])+2
+#            d <- read.table(infile,skip=l2,fill=TRUE)
+#            
+#### find parameter names
+#            par <- readLines(infile,n=l2)
+#            para <- array(NA,l2-3)
+#            for (k in 3:l2) {
+#                para[k-2] <- substring(par,1,5)[k]
+#            }
+#            para <- gsub(" ", "", para, fixed = TRUE)
+####
+#            
+#            tot <- dim(d)[1]
+#            k <- array(TRUE,tot)
+#            
+#            for (iii in 1:tot) {
+#                if (iii > l1) k[iii] <- FALSE
+#            }
+#            fc2 <- d[k,]
+#            names(fc2) <- c("WMO","LAT","LON",para)
+#            fc2[,] <- lapply(fc2, function(x) {as.numeric(as.character(x))})
+#	    fcfilename=basename(infile)
+#            #fc2$validdate <- (substring(infile,19,28)) #BUG!
+#	    fc2$validdate <-(substring(fcfilename,8,17))
+#	    fc2$LT <- (substring(fcfilename,18,19))
+#	    #cat("init ",fc2$LT,"\n")
+#            #fc2$LT <- (substring(infile,29,30))
+# 
+#            if ( !("FI" %in% names(fc2)) ) fc2$FI <- -99
+#    	    if ( !("NN" %in% names(fc2)) ) fc2$NN <- -99
+#    	    if ( !("DD" %in% names(fc2)) ) fc2$DD <- -99
+#    	    if ( !("FF" %in% names(fc2)) ) fc2$FF <- -99
+#    	    if ( !("TT" %in% names(fc2)) ) fc2$TT <- -99
+#    	    if ( !("RH" %in% names(fc2)) ) fc2$RH <- -99
+#    	    if ( !("PS" %in% names(fc2)) ) fc2$PS <- -99
+#    	    if ( !("PE" %in% names(fc2)) ) fc2$PE <- -99
+#    	    if ( !("QQ" %in% names(fc2)) ) fc2$QQ <- -99
+#    	    if ( !("VI" %in% names(fc2)) ) fc2$VI <- -99
+#    	    if ( !("CH" %in% names(fc2)) ) fc2$CH <- -99
+#            if ( !("LC" %in% names(fc2)) ) fc2$LC <- -99
+#    	    if ( !("TD" %in% names(fc2)) ) fc2$TD <- -99
+#            if ( !("TX" %in% names(fc2)) ) fc2$TX <- -99
+#            if ( !("TN" %in% names(fc2)) ) fc2$TN <- -99
+#            if ( !("GG" %in% names(fc2)) ) fc2$GG <- -99
+#            if ( !("GX" %in% names(fc2)) ) fc2$GX <- -99
+#
+#            if (ii==1) fc2tot <- fc2
+#            if (ii>1)  fc2tot <- rbind(fc2,fc2tot) # this will fail the 2nd time bc second file has more cols
+#	    #if (ii > 1) fc2tot <-rbindlist(list(fc2,fc2tot), fill = TRUE)
+#            
+#        } 
+#    } 
+#}
+#list_vars
+#list_vars[1]
+#get(list_vars[1])
+#for (i in list_vars) 
+#	{
+#	print(i)
+#	#print(get(i))
+#	}
+#length(list_vars)
+#quit()
 #require(miIO)
-print("passed fc reading")
-warnings()
-#fc <- merge2(fc1tot,fc2tot,by=c("WMO","validdate","LT"),suffixes = c(".fc1",".fc2"))
-
+######print("passed fc reading")
+#warnings()
+#fc_test <- Reduce( function(merge_) merge(x, y, ...), flightsList)
+#NEED TO ADD A LOOP HERE!!!
+source("get_localmodel_data.R")
+source("get_globalmodel_data.R")
+for (i in names(files)) {
+    if (i == 'nea') {
+        fc1tot<- get_localmodel_data(i,files)
+                    }
+    if (i== 'ec9')  {
+        fc2tot<- get_globalmodel_data(i,files)
+                    }
+}
 fc <- merge(fc1tot,fc2tot,by=c("WMO","validdate","LT"),suffixes = c(".fc1",".fc2"))
 #fc <- fc1tot
 #fc <- fc1
@@ -232,81 +246,83 @@ print("passed fc merging")
 #### read observations #####################
 ############################################
 
-            obs   <- NULL
-            obstot<- NULL
-            
-for (i in names(obsfiles)) {
-    for (ii in 1:length(obsfiles[[i]])) {      
-        infileobs <- obsfiles[[i]][ii]
-        m <- paste(infileobs,sep="")
-        print(m)
-        x <- readLines(m)
-        
-        l1 <- read.table(infileobs,fill=TRUE)
-        l1 <- as.numeric(as.character(l1[1,1]))
-        l2 <- as.numeric(x[2])+2
+source("get_obs_data.R")
+obstot <- get_obs_data(obsfiles)
 
-### find parameter names
-        par <- readLines(infileobs,n=l2)
-        para <- array(NA,l2-3)
-        for (k in 3:l2) {
-            para[k-2] <- substring(par,1,5)[k]
-        }
-        para <- gsub(" ", "", para, fixed = TRUE)
-###
- 
-        
-        d <- read.table(infileobs,skip=l2,fill=TRUE)
-        
-        tot <- dim(d)[1]
-        k <- array(TRUE,tot)
-        
-        for (iii in 1:tot) {
-            if (iii > l1) k[iii] <- FALSE
-        }
-        
-        obs <- d[k,]
-#        names(obs) <- c("WMO","LAT","LON","AMSL","NN","DD","FF","TT","TD","RH","PSS","PS","VI","PE24","PE","PE1","QQ","TX","TM","GW","GM","WX","PE3")
-        names(obs) <- c("WMO","LAT","LON","AMSL",para)
-        if ( !("PE" %in% names(obs)) ) obs$PE <- -99
-    	if ( !("PE1" %in% names(obs)) ) obs$PE1 <- -99
-    	if ( !("PE3" %in% names(obs)) ) obs$PE3 <- -99
-    	if ( !("PE6" %in% names(obs)) ) obs$PE6 <- -99
-    	if ( !("PE24" %in% names(obs)) ) obs$PE24 <- -99
-    	if ( !("TM" %in% names(obs)) ) obs$TM <- -99
-    	if ( !("TX" %in% names(obs)) ) obs$TX <- -99
-    	if ( !("QQ" %in% names(obs)) ) obs$QQ <- -99
-    	if ( !("GW" %in% names(obs)) ) obs$GW <- -99
-    	if ( !("GM" %in% names(obs)) ) obs$GM <- -99
-    	if ( !("WX" %in% names(obs)) ) obs$WX <- -99
-        
-        obs[,] <- lapply(obs, function(x) {as.numeric(as.character(x))})
-	obsfilename=basename(infileobs)
-        #cat("check infileobs ",obsfilename,"\n")
-	#print(substring(obsfilename,5,16))
-	#stop("check")
-        obs$validdate <- (substring(obsfilename,5,16))
-        #obs$validdate <- (substring(infileobs,16,25))
-	#cat("obs validdate: ", obs$validdate)
-        if (ii==1) obstot <- obs
-        if (ii>1)  obstot <- rbind(obs,obstot)
-        
-    }
-}
+            
+#for (i in names(obsfiles)) {
+#    for (ii in 1:length(obsfiles[[i]])) {      
+#        infileobs <- obsfiles[[i]][ii]
+#        m <- paste(infileobs,sep="")
+#        print(m)
+#        x <- readLines(m)
+#        
+#        l1 <- read.table(infileobs,fill=TRUE)
+#        l1 <- as.numeric(as.character(l1[1,1]))
+#        l2 <- as.numeric(x[2])+2
+#
+#### find parameter names
+#        par <- readLines(infileobs,n=l2)
+#        para <- array(NA,l2-3)
+#        for (k in 3:l2) {
+#            para[k-2] <- substring(par,1,5)[k]
+#        }
+#        para <- gsub(" ", "", para, fixed = TRUE)
+####
+# 
+#        
+#        d <- read.table(infileobs,skip=l2,fill=TRUE)
+#        
+#        tot <- dim(d)[1]
+#        k <- array(TRUE,tot)
+#        
+#        for (iii in 1:tot) {
+#            if (iii > l1) k[iii] <- FALSE
+#        }
+#        
+#        obs <- d[k,]
+##        names(obs) <- c("WMO","LAT","LON","AMSL","NN","DD","FF","TT","TD","RH","PSS","PS","VI","PE24","PE","PE1","QQ","TX","TM","GW","GM","WX","PE3")
+#        names(obs) <- c("WMO","LAT","LON","AMSL",para)
+#        if ( !("PE" %in% names(obs)) ) obs$PE <- -99
+#    	if ( !("PE1" %in% names(obs)) ) obs$PE1 <- -99
+#    	if ( !("PE3" %in% names(obs)) ) obs$PE3 <- -99
+#    	if ( !("PE6" %in% names(obs)) ) obs$PE6 <- -99
+#    	if ( !("PE24" %in% names(obs)) ) obs$PE24 <- -99
+#    	if ( !("TM" %in% names(obs)) ) obs$TM <- -99
+#    	if ( !("TX" %in% names(obs)) ) obs$TX <- -99
+#    	if ( !("QQ" %in% names(obs)) ) obs$QQ <- -99
+#    	if ( !("GW" %in% names(obs)) ) obs$GW <- -99
+#    	if ( !("GM" %in% names(obs)) ) obs$GM <- -99
+#    	if ( !("WX" %in% names(obs)) ) obs$WX <- -99
+#        
+#        obs[,] <- lapply(obs, function(x) {as.numeric(as.character(x))})
+#	obsfilename=basename(infileobs)
+#        #cat("check infileobs ",obsfilename,"\n")
+#	#print(substring(obsfilename,5,16))
+#	#stop("check")
+#        obs$validdate <- (substring(obsfilename,5,16))
+#        #obs$validdate <- (substring(infileobs,16,25))
+#	#cat("obs validdate: ", obs$validdate)
+#        if (ii==1) obstot <- obs
+#        if (ii>1)  obstot <- rbind(obs,obstot)
+#        
+#    }
+#}
 
 
 #xalldata <-  merge2(fc,obstot,by=c("WMO","validdate"),suffixes = c("",".obs"))
 
-print("before obstot")
-
+#print("before obstot")
+#print(obstot)
 names(obstot) <- ifelse(names(obstot)=="WMO" | names(obstot)=="validdate", names(obstot),paste(names(obstot),".obs",sep=""))
-print(obstot)
+#print(obstot)
 print("before xalldata")
-xalldata <-  merge(fc,obstot,by=c("WMO","validdate"),suffixes = c("",".obs"))
-print("after xalldata")
 
-##### all data are read and orginazied in table xalldata
+##### all data are read and organized in table xalldata
  
+xalldata <-  merge(fc,obstot,by=c("WMO","validdate"),suffixes = c("",".obs"))
+print("after merging xalldata")
+
 ########################################
 #### Here start verification part   ####
 ########################################
@@ -314,6 +330,13 @@ print("after xalldata")
 source("stations.R")
 
 for (st in 1:length(slist)) {
+    # Poort attempt to generalize this:	
+    #station_name <- paste(slist[st])
+    #assign(station_name,slist[st])
+    #print(station_name)
+    #k <- xalldata$WMO %in% noquote(station_name)
+
+    #this k will be a boolean matrix of FALSE and TRUE
     if (slist[st]=="CARRASvalbard") k <- xalldata$WMO %in% CARRASvalbard 
     if (slist[st]=="CARRANorwayCoast") k <- xalldata$WMO %in% CARRANorwayCoast 
     if (slist[st]=="CARRANorwayFjords") k <- xalldata$WMO %in% CARRANorwayFjords 
@@ -334,8 +357,11 @@ for (st in 1:length(slist)) {
 
     #if (slist[st]=="Denmark") print("selected DK")
     if (slist[st]=="ALL") k <- xalldata$WMO %in% unique(xalldata$WMO)
-    
+    #print(k)
+    #print("----------------------")
     x <- xalldata[k,]
+    #print(x)
+    #quit()
     
     for (i in 1:np) {
 
@@ -639,9 +665,8 @@ if ("TT" %in% pv) {
 k <- as.character(verifout$PARA)=="TT"
 pd <- verifout[k,c(1,5,6,3,4)]
 #pd <- verifout[k,c(1,1,1,1,1)] 
-
-print(pd)
-print("end")
+#print(pd)
+#print("end")
 
 #pd <- data.frame(verifout[c(1,7,13,19,25,31,37,43,49,55),c(1,5,6,3,4)])
 names(pd) <- c("TT.in.region","nea.std","ec9.std","nea.bias","ec9.bias")
@@ -667,25 +692,25 @@ signi[,5] <- signi[,4]
 
 
 ##
-print("before")
-print(pd)
-print("printed")
-print(substring(pd[,1],1,7))
-print(substring(as.character(pd[,1]),8,30))
-print(substring(as.character(pd[,1]),1,30))
+#print("before")
+#print(pd)
+#print("printed")
+#print(substring(pd[,1],1,7))
+#print(substring(as.character(pd[,1]),8,30))
+#print(substring(as.character(pd[,1]),1,30))
 pd[,1] <- ifelse (substring(pd[,1],1,7)=="Denmark", substring(as.character(pd[,1]),8,30),substring(as.character(pd[,1]),1,30))
 
 #cat("first element ",pd[,1],"\n")
 pdpara <- cbind(pd[1],sapply(pd[2:5], function(x) {as.numeric(as.character(x))}))
 pd <- pdpara
-print("first occ")
-print(dim(pd))
+#print("first occ")
+#print(dim(pd))
 #pd <- na.omit(pd) #omit missing values
 
 cols <- matrix("black", nrow(pd), ncol(pd))
 colsfill <- matrix("lightgrey", nrow(pd), ncol(pd))
-print(dim(cols))
-print(dim(colsfill))
+#print(dim(cols))
+#print(dim(colsfill))
 for (i in 1:dim(pd)[1]) {
     cat("check i: ",i," ",pd[i,1],"\n")
 }
@@ -706,7 +731,7 @@ for (i in 1:dim(pd)[1]) {
     if (abs(pd[i,4]) > abs(pd[i,5]) + threshcol2 ) colsfill[i,4:5] <- c("pink", "green")
 }
 
-print("passed loop")
+#print("passed loop")
 tt <- ttheme_default(core=list(fg_params = list(col = cols),
                                 bg_params = list(fill=colsfill)),
                       rowhead=list(bg_params = list(col=NA)),
