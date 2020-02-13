@@ -362,276 +362,276 @@ for (st in 1:length(slist)) {
     x <- xalldata[k,]
     #print(x)
     #quit()
-    
-    for (i in 1:np) {
+    source("set_vpars_conf_int.R")
+    #for (i in 1:np) {
 
-        verifpara[(np*st-np)+i,1] <- slist[st]
-        verifpara[(np*st-np)+i,2] <- pv[i]
-        verifparamin[(np*st-np)+i,1] <- slist[st]
-        verifparamin[(np*st-np)+i,2] <- pv[i]
-        verifparamax[(np*st-np)+i,1] <- slist[st]
-        verifparamax[(np*st-np)+i,2] <- pv[i]
-        
-# TT
-        if (pv[i]=="TT") {
-            obs <- x$TT.obs
-            fc1 <- x$TT.fc1
-            fc2 <- x$TT.fc2
-            
-            k <- (obs > 200. & fc1 > 200. & fc2 > 200.)
-            
-            obs <- obs[k]-273.14
-            fc1 <- fc1[k]-273.14
-            fc2 <- fc2[k]-273.14
-             if (length(obs) > 100) {
-            verifpara[(np*st-np)+i,3] <- round(mean(fc1-obs),2)
-            verifpara[(np*st-np)+i,4] <- round(mean(fc2-obs),2)
-            verifpara[(np*st-np)+i,5] <- round(sd(fc1-obs),2)
-            verifpara[(np*st-np)+i,6] <- round(sd(fc2-obs),2)
-            
-# confidence intervals:
-        rn <- 500
-        btmp1 <- array(NA,rn)
-            btmp2 <- array(NA,rn)
-            
-        sde1 <- array(NA,rn)
-        sde2 <- array(NA,rn)
-        for (rs in 1:rn) {
-            k <- sample(1:length(obs),length(obs),replace=TRUE)
-            btmp1[rs] <- round(mean(fc1[k]-obs[k]),2)
-            btmp2[rs] <- round(mean(fc2[k]-obs[k]),2)
-            sde1[rs] <- round(sd(fc1[k]-obs[k]),2)
-            sde2[rs] <- round(sd(fc2[k]-obs[k]),2)
-        }
-            verifparamin[(np*st-np)+i,3] <- round(quantile(btmp1,probs=0.025,na.rm=TRUE),2)
-            verifparamin[(np*st-np)+i,4] <- round(quantile(btmp2,probs=0.025,na.rm=TRUE),2)
-            verifparamin[(np*st-np)+i,5] <- round(quantile(sde1,probs=0.025,na.rm=TRUE),2)
-            verifparamin[(np*st-np)+i,6] <- round(quantile(sde2,probs=0.025,na.rm=TRUE),2)
-            verifparamax[(np*st-np)+i,3] <- round(quantile(btmp1,probs=0.975,na.rm=TRUE),2)
-            verifparamax[(np*st-np)+i,4] <- round(quantile(btmp2,probs=0.975,na.rm=TRUE),2)
-            verifparamax[(np*st-np)+i,5] <- round(quantile(sde1,probs=0.975,na.rm=TRUE),2)
-            verifparamax[(np*st-np)+i,6] <- round(quantile(sde2,probs=0.975,na.rm=TRUE),2)
-             }
-        
-    }
-         
-# TTHC
-        if (pv[i]=="TTHC") {
-            obs <- x$TT.obs
-            fc1 <- x$TT.fc1 + 0.0065*(x$FI.fc1-x$AMSL.obs)
-            fc2 <- x$TT.fc2 + 0.0065*(x$FI.fc2-x$AMSL.obs)
-            
-            k <- (obs > 200. & fc1 > 200. & fc2 > 200.)
-            
-            obs <- obs[k]-273.14
-            fc1 <- fc1[k]-273.14
-            fc2 <- fc2[k]-273.14
-            
-            verifpara[(np*st-np)+i,3] <- round(mean(fc1-obs),2)
-            verifpara[(np*st-np)+i,4] <- round(mean(fc2-obs),2)
-            verifpara[(np*st-np)+i,5] <- round(sd(fc1-obs),2)
-            verifpara[(np*st-np)+i,6] <- round(sd(fc2-obs),2)
-            
-# confidence intervals:
-        rn <- 500
-        btmp1 <- array(NA,rn)
-        btmp2 <- array(NA,rn)
-        sde1 <- array(NA,rn)
-        sde2 <- array(NA,rn)
-        for (rs in 1:rn) {
-            k <- sample(1:length(obs),length(obs),replace=TRUE)
-            btmp1[rs] <- round(mean(fc1[k]-obs[k]),2)
-            btmp2[rs] <- round(mean(fc2[k]-obs[k]),2)
-            sde1[rs] <- round(sd(fc1[k]-obs[k]),2)
-            sde2[rs] <- round(sd(fc2[k]-obs[k]),2)
-        }
-            verifparamin[(np*st-np)+i,3] <- round(quantile(btmp1,probs=0.025,na.rm=TRUE),2)
-            verifparamin[(np*st-np)+i,4] <- round(quantile(btmp2,probs=0.025,na.rm=TRUE),2)
-            verifparamin[(np*st-np)+i,5] <- round(quantile(sde1,probs=0.025,na.rm=TRUE),2)
-            verifparamin[(np*st-np)+i,6] <- round(quantile(sde2,probs=0.025,na.rm=TRUE),2)
-            verifparamax[(np*st-np)+i,3] <- round(quantile(btmp1,probs=0.975,na.rm=TRUE),2)
-            verifparamax[(np*st-np)+i,4] <- round(quantile(btmp2,probs=0.975,na.rm=TRUE),2)
-            verifparamax[(np*st-np)+i,5] <- round(quantile(sde1,probs=0.975,na.rm=TRUE),2)
-            verifparamax[(np*st-np)+i,6] <- round(quantile(sde2,probs=0.975,na.rm=TRUE),2)
-            
-        
-    }    
-# FF
-        if (pv[i]=="FF") {
-            obs <- x$FF.obs
-            fc1 <- x$FF.fc1
-            fc2 <- x$FF.fc2
-            
-            k <- (obs >= 0. & fc1 >= 0. & fc2 >= 0.)
-            
-            obs <- obs[k]
-            fc1 <- fc1[k]
-            fc2 <- fc2[k]
-             if (length(obs) > 100) {
-            verifpara[(np*st-np)+i,3] <- round(mean(fc1-obs),2)
-            verifpara[(np*st-np)+i,4] <- round(mean(fc2-obs),2)
-            verifpara[(np*st-np)+i,5] <- round(sd(fc1-obs),2)
-            verifpara[(np*st-np)+i,6] <- round(sd(fc2-obs),2)
+    #    verifpara[(np*st-np)+i,1] <- slist[st]
+    #    verifpara[(np*st-np)+i,2] <- pv[i]
+    #    verifparamin[(np*st-np)+i,1] <- slist[st]
+    #    verifparamin[(np*st-np)+i,2] <- pv[i]
+    #    verifparamax[(np*st-np)+i,1] <- slist[st]
+    #    verifparamax[(np*st-np)+i,2] <- pv[i]
+    #    
+# TT#
+    #    if (pv[i]=="TT") {
+    #        obs <- x$TT.obs
+    #        fc1 <- x$TT.fc1
+    #        fc2 <- x$TT.fc2
+    #        
+    #        k <- (obs > 200. & fc1 > 200. & fc2 > 200.)
+    #        
+    #        obs <- obs[k]-273.14
+    #        fc1 <- fc1[k]-273.14
+    #        fc2 <- fc2[k]-273.14
+    #         if (length(obs) > 100) {
+    #        verifpara[(np*st-np)+i,3] <- round(mean(fc1-obs),2)
+    #        verifpara[(np*st-np)+i,4] <- round(mean(fc2-obs),2)
+    #        verifpara[(np*st-np)+i,5] <- round(sd(fc1-obs),2)
+    #        verifpara[(np*st-np)+i,6] <- round(sd(fc2-obs),2)
+    #        
+# co#nfidence intervals:
+    #    rn <- 500
+    #    btmp1 <- array(NA,rn)
+    #        btmp2 <- array(NA,rn)
+    #        
+    #    sde1 <- array(NA,rn)
+    #    sde2 <- array(NA,rn)
+    #    for (rs in 1:rn) {
+    #        k <- sample(1:length(obs),length(obs),replace=TRUE)
+    #        btmp1[rs] <- round(mean(fc1[k]-obs[k]),2)
+    #        btmp2[rs] <- round(mean(fc2[k]-obs[k]),2)
+    #        sde1[rs] <- round(sd(fc1[k]-obs[k]),2)
+    #        sde2[rs] <- round(sd(fc2[k]-obs[k]),2)
+    #    }
+    #        verifparamin[(np*st-np)+i,3] <- round(quantile(btmp1,probs=0.025,na.rm=TRUE),2)
+    #        verifparamin[(np*st-np)+i,4] <- round(quantile(btmp2,probs=0.025,na.rm=TRUE),2)
+    #        verifparamin[(np*st-np)+i,5] <- round(quantile(sde1,probs=0.025,na.rm=TRUE),2)
+    #        verifparamin[(np*st-np)+i,6] <- round(quantile(sde2,probs=0.025,na.rm=TRUE),2)
+    #        verifparamax[(np*st-np)+i,3] <- round(quantile(btmp1,probs=0.975,na.rm=TRUE),2)
+    #        verifparamax[(np*st-np)+i,4] <- round(quantile(btmp2,probs=0.975,na.rm=TRUE),2)
+    #        verifparamax[(np*st-np)+i,5] <- round(quantile(sde1,probs=0.975,na.rm=TRUE),2)
+    #        verifparamax[(np*st-np)+i,6] <- round(quantile(sde2,probs=0.975,na.rm=TRUE),2)
+    #         }
+    #    
+    #}
+    #     
+# TT#HC
+    #    if (pv[i]=="TTHC") {
+    #        obs <- x$TT.obs
+    #        fc1 <- x$TT.fc1 + 0.0065*(x$FI.fc1-x$AMSL.obs)
+    #        fc2 <- x$TT.fc2 + 0.0065*(x$FI.fc2-x$AMSL.obs)
+    #        
+    #        k <- (obs > 200. & fc1 > 200. & fc2 > 200.)
+    #        
+    #        obs <- obs[k]-273.14
+    #        fc1 <- fc1[k]-273.14
+    #        fc2 <- fc2[k]-273.14
+    #        
+    #        verifpara[(np*st-np)+i,3] <- round(mean(fc1-obs),2)
+    #        verifpara[(np*st-np)+i,4] <- round(mean(fc2-obs),2)
+    #        verifpara[(np*st-np)+i,5] <- round(sd(fc1-obs),2)
+    #        verifpara[(np*st-np)+i,6] <- round(sd(fc2-obs),2)
+    #        
+# co#nfidence intervals:
+    #    rn <- 500
+    #    btmp1 <- array(NA,rn)
+    #    btmp2 <- array(NA,rn)
+    #    sde1 <- array(NA,rn)
+    #    sde2 <- array(NA,rn)
+    #    for (rs in 1:rn) {
+    #        k <- sample(1:length(obs),length(obs),replace=TRUE)
+    #        btmp1[rs] <- round(mean(fc1[k]-obs[k]),2)
+    #        btmp2[rs] <- round(mean(fc2[k]-obs[k]),2)
+    #        sde1[rs] <- round(sd(fc1[k]-obs[k]),2)
+    #        sde2[rs] <- round(sd(fc2[k]-obs[k]),2)
+    #    }
+    #        verifparamin[(np*st-np)+i,3] <- round(quantile(btmp1,probs=0.025,na.rm=TRUE),2)
+    #        verifparamin[(np*st-np)+i,4] <- round(quantile(btmp2,probs=0.025,na.rm=TRUE),2)
+    #        verifparamin[(np*st-np)+i,5] <- round(quantile(sde1,probs=0.025,na.rm=TRUE),2)
+    #        verifparamin[(np*st-np)+i,6] <- round(quantile(sde2,probs=0.025,na.rm=TRUE),2)
+    #        verifparamax[(np*st-np)+i,3] <- round(quantile(btmp1,probs=0.975,na.rm=TRUE),2)
+    #        verifparamax[(np*st-np)+i,4] <- round(quantile(btmp2,probs=0.975,na.rm=TRUE),2)
+    #        verifparamax[(np*st-np)+i,5] <- round(quantile(sde1,probs=0.975,na.rm=TRUE),2)
+    #        verifparamax[(np*st-np)+i,6] <- round(quantile(sde2,probs=0.975,na.rm=TRUE),2)
+    #        
+    #    
+    #}    
+# FF#
+    #    if (pv[i]=="FF") {
+    #        obs <- x$FF.obs
+    #        fc1 <- x$FF.fc1
+    #        fc2 <- x$FF.fc2
+    #        
+    #        k <- (obs >= 0. & fc1 >= 0. & fc2 >= 0.)
+    #        
+    #        obs <- obs[k]
+    #        fc1 <- fc1[k]
+    #        fc2 <- fc2[k]
+    #         if (length(obs) > 100) {
+    #        verifpara[(np*st-np)+i,3] <- round(mean(fc1-obs),2)
+    #        verifpara[(np*st-np)+i,4] <- round(mean(fc2-obs),2)
+    #        verifpara[(np*st-np)+i,5] <- round(sd(fc1-obs),2)
+    #        verifpara[(np*st-np)+i,6] <- round(sd(fc2-obs),2)
 
-                     
-# confidence intervals:
-        rn <- 500
-        btmp1 <- array(NA,rn)
-        btmp2 <- array(NA,rn)
-        sde1 <- array(NA,rn)
-        sde2 <- array(NA,rn)
-        for (rs in 1:rn) {
-            k <- sample(1:length(obs),length(obs),replace=TRUE)
-            btmp1[rs] <- round(mean(fc1[k]-obs[k]),2)
-            btmp2[rs] <- round(mean(fc2[k]-obs[k]),2)
-            sde1[rs] <- round(sd(fc1[k]-obs[k]),2)
-            sde2[rs] <- round(sd(fc2[k]-obs[k]),2)
-        }
-            verifparamin[(np*st-np)+i,3] <- round(quantile(btmp1,probs=0.025,na.rm=TRUE),2)
-            verifparamin[(np*st-np)+i,4] <- round(quantile(btmp2,probs=0.025,na.rm=TRUE),2)
-            verifparamin[(np*st-np)+i,5] <- round(quantile(sde1,probs=0.025,na.rm=TRUE),2)
-            verifparamin[(np*st-np)+i,6] <- round(quantile(sde2,probs=0.025,na.rm=TRUE),2)
-            verifparamax[(np*st-np)+i,3] <- round(quantile(btmp1,probs=0.975,na.rm=TRUE),2)
-            verifparamax[(np*st-np)+i,4] <- round(quantile(btmp2,probs=0.975,na.rm=TRUE),2)
-            verifparamax[(np*st-np)+i,5] <- round(quantile(sde1,probs=0.975,na.rm=TRUE),2)
-            verifparamax[(np*st-np)+i,6] <- round(quantile(sde2,probs=0.975,na.rm=TRUE),2)
-             }
-        }
-	
-# MSLP / PSS
-        if (pv[i]=="PSS") {
-            obs <- x$PS.obs
-            fc1 <- x$PS.fc1
-            fc2 <- x$PS.fc2
-            
-            k <- (obs >= 0. & fc1 >= 0. & fc2 >= 0.)
-            
-            obs <- obs[k]
-            obs <- ifelse(obs > 2000., obs/100,obs)      # some pss-obs are given in Pa, some in hPa
-            fc1 <- fc1[k]
-            fc2 <- fc2[k]
+    #                 
+# co#nfidence intervals:
+    #    rn <- 500
+    #    btmp1 <- array(NA,rn)
+    #    btmp2 <- array(NA,rn)
+    #    sde1 <- array(NA,rn)
+    #    sde2 <- array(NA,rn)
+    #    for (rs in 1:rn) {
+    #        k <- sample(1:length(obs),length(obs),replace=TRUE)
+    #        btmp1[rs] <- round(mean(fc1[k]-obs[k]),2)
+    #        btmp2[rs] <- round(mean(fc2[k]-obs[k]),2)
+    #        sde1[rs] <- round(sd(fc1[k]-obs[k]),2)
+    #        sde2[rs] <- round(sd(fc2[k]-obs[k]),2)
+    #    }
+    #        verifparamin[(np*st-np)+i,3] <- round(quantile(btmp1,probs=0.025,na.rm=TRUE),2)
+    #        verifparamin[(np*st-np)+i,4] <- round(quantile(btmp2,probs=0.025,na.rm=TRUE),2)
+    #        verifparamin[(np*st-np)+i,5] <- round(quantile(sde1,probs=0.025,na.rm=TRUE),2)
+    #        verifparamin[(np*st-np)+i,6] <- round(quantile(sde2,probs=0.025,na.rm=TRUE),2)
+    #        verifparamax[(np*st-np)+i,3] <- round(quantile(btmp1,probs=0.975,na.rm=TRUE),2)
+    #        verifparamax[(np*st-np)+i,4] <- round(quantile(btmp2,probs=0.975,na.rm=TRUE),2)
+    #        verifparamax[(np*st-np)+i,5] <- round(quantile(sde1,probs=0.975,na.rm=TRUE),2)
+    #        verifparamax[(np*st-np)+i,6] <- round(quantile(sde2,probs=0.975,na.rm=TRUE),2)
+    #         }
+    #    }
+    #    
+# MS#LP / PSS
+    #    if (pv[i]=="PSS") {
+    #        obs <- x$PS.obs
+    #        fc1 <- x$PS.fc1
+    #        fc2 <- x$PS.fc2
+    #        
+    #        k <- (obs >= 0. & fc1 >= 0. & fc2 >= 0.)
+    #        
+    #        obs <- obs[k]
+    #        obs <- ifelse(obs > 2000., obs/100,obs)      # some pss-obs are given in Pa, some in hPa
+    #        fc1 <- fc1[k]
+    #        fc2 <- fc2[k]
 
-            if (length(obs) > 100) {
-            verifpara[(np*st-np)+i,3] <- round(mean(fc1-obs),2)
-            verifpara[(np*st-np)+i,4] <- round(mean(fc2-obs),2)
-            verifpara[(np*st-np)+i,5] <- round(sd(fc1-obs),2)
-            verifpara[(np*st-np)+i,6] <- round(sd(fc2-obs),2)
+    #        if (length(obs) > 100) {
+    #        verifpara[(np*st-np)+i,3] <- round(mean(fc1-obs),2)
+    #        verifpara[(np*st-np)+i,4] <- round(mean(fc2-obs),2)
+    #        verifpara[(np*st-np)+i,5] <- round(sd(fc1-obs),2)
+    #        verifpara[(np*st-np)+i,6] <- round(sd(fc2-obs),2)
 
-                     
-# confidence intervals:
-        rn <- 500
-        btmp1 <- array(NA,rn)
-        btmp2 <- array(NA,rn)
-        sde1 <- array(NA,rn)
-        sde2 <- array(NA,rn)
-        for (rs in 1:rn) {
-            k <- sample(1:length(obs),length(obs),replace=TRUE)
-            btmp1[rs] <- round(mean(fc1[k]-obs[k]),2)
-            btmp2[rs] <- round(mean(fc2[k]-obs[k]),2)
-            sde1[rs] <- round(sd(fc1[k]-obs[k]),2)
-            sde2[rs] <- round(sd(fc2[k]-obs[k]),2)
-        }
-            verifparamin[(np*st-np)+i,3] <- round(quantile(btmp1,probs=0.025,na.rm=TRUE),2)
-            verifparamin[(np*st-np)+i,4] <- round(quantile(btmp2,probs=0.025,na.rm=TRUE),2)
-            verifparamin[(np*st-np)+i,5] <- round(quantile(sde1,probs=0.025,na.rm=TRUE),2)
-            verifparamin[(np*st-np)+i,6] <- round(quantile(sde2,probs=0.025,na.rm=TRUE),2)
-            verifparamax[(np*st-np)+i,3] <- round(quantile(btmp1,probs=0.975,na.rm=TRUE),2)
-            verifparamax[(np*st-np)+i,4] <- round(quantile(btmp2,probs=0.975,na.rm=TRUE),2)
-            verifparamax[(np*st-np)+i,5] <- round(quantile(sde1,probs=0.975,na.rm=TRUE),2)
-            verifparamax[(np*st-np)+i,6] <- round(quantile(sde2,probs=0.975,na.rm=TRUE),2)
-            }
-        }
-# RH
-        if (pv[i]=="RH") {
-            obs <- x$RH.obs
-            fc1 <- x$RH.fc1
-            fc2 <- x$RH.fc2
-            
-            obs <- ifelse(obs > 100., 100., obs)
-            fc1 <- ifelse(fc1 > 100., 100., fc1)
-            fc2 <- ifelse(fc2 > 100., 100., fc2)
-            
-            k <- (obs >= 0. & fc1 >= 0. & fc2 >= 0.)
-            
-            obs <- obs[k]
-            fc1 <- fc1[k]
-            fc2 <- fc2[k]
-             if (length(obs) > 100) {
-            verifpara[(np*st-np)+i,3] <- round(mean(fc1-obs),2)
-            verifpara[(np*st-np)+i,4] <- round(mean(fc2-obs),2)
-            verifpara[(np*st-np)+i,5] <- round(sd(fc1-obs),2)
-            verifpara[(np*st-np)+i,6] <- round(sd(fc2-obs),2)
+    #                 
+# co#nfidence intervals:
+    #    rn <- 500
+    #    btmp1 <- array(NA,rn)
+    #    btmp2 <- array(NA,rn)
+    #    sde1 <- array(NA,rn)
+    #    sde2 <- array(NA,rn)
+    #    for (rs in 1:rn) {
+    #        k <- sample(1:length(obs),length(obs),replace=TRUE)
+    #        btmp1[rs] <- round(mean(fc1[k]-obs[k]),2)
+    #        btmp2[rs] <- round(mean(fc2[k]-obs[k]),2)
+    #        sde1[rs] <- round(sd(fc1[k]-obs[k]),2)
+    #        sde2[rs] <- round(sd(fc2[k]-obs[k]),2)
+    #    }
+    #        verifparamin[(np*st-np)+i,3] <- round(quantile(btmp1,probs=0.025,na.rm=TRUE),2)
+    #        verifparamin[(np*st-np)+i,4] <- round(quantile(btmp2,probs=0.025,na.rm=TRUE),2)
+    #        verifparamin[(np*st-np)+i,5] <- round(quantile(sde1,probs=0.025,na.rm=TRUE),2)
+    #        verifparamin[(np*st-np)+i,6] <- round(quantile(sde2,probs=0.025,na.rm=TRUE),2)
+    #        verifparamax[(np*st-np)+i,3] <- round(quantile(btmp1,probs=0.975,na.rm=TRUE),2)
+    #        verifparamax[(np*st-np)+i,4] <- round(quantile(btmp2,probs=0.975,na.rm=TRUE),2)
+    #        verifparamax[(np*st-np)+i,5] <- round(quantile(sde1,probs=0.975,na.rm=TRUE),2)
+    #        verifparamax[(np*st-np)+i,6] <- round(quantile(sde2,probs=0.975,na.rm=TRUE),2)
+    #        }
+    #    }
+# RH#
+    #    if (pv[i]=="RH") {
+    #        obs <- x$RH.obs
+    #        fc1 <- x$RH.fc1
+    #        fc2 <- x$RH.fc2
+    #        
+    #        obs <- ifelse(obs > 100., 100., obs)
+    #        fc1 <- ifelse(fc1 > 100., 100., fc1)
+    #        fc2 <- ifelse(fc2 > 100., 100., fc2)
+    #        
+    #        k <- (obs >= 0. & fc1 >= 0. & fc2 >= 0.)
+    #        
+    #        obs <- obs[k]
+    #        fc1 <- fc1[k]
+    #        fc2 <- fc2[k]
+    #         if (length(obs) > 100) {
+    #        verifpara[(np*st-np)+i,3] <- round(mean(fc1-obs),2)
+    #        verifpara[(np*st-np)+i,4] <- round(mean(fc2-obs),2)
+    #        verifpara[(np*st-np)+i,5] <- round(sd(fc1-obs),2)
+    #        verifpara[(np*st-np)+i,6] <- round(sd(fc2-obs),2)
 
-                     
-# confidence intervals:
-        rn <- 500
-        btmp1 <- array(NA,rn)
-        btmp2 <- array(NA,rn)
-        sde1 <- array(NA,rn)
-        sde2 <- array(NA,rn)
-        for (rs in 1:rn) {
-            k <- sample(1:length(obs),length(obs),replace=TRUE)
-            btmp1[rs] <- round(mean(fc1[k]-obs[k]),2)
-            btmp2[rs] <- round(mean(fc2[k]-obs[k]),2)
-            sde1[rs] <- round(sd(fc1[k]-obs[k]),2)
-            sde2[rs] <- round(sd(fc2[k]-obs[k]),2)
-        }
-            verifparamin[(np*st-np)+i,3] <- round(quantile(btmp1,probs=0.025,na.rm=TRUE),2)
-            verifparamin[(np*st-np)+i,4] <- round(quantile(btmp2,probs=0.025,na.rm=TRUE),2)
-            verifparamin[(np*st-np)+i,5] <- round(quantile(sde1,probs=0.025,na.rm=TRUE),2)
-            verifparamin[(np*st-np)+i,6] <- round(quantile(sde2,probs=0.025,na.rm=TRUE),2)
-            verifparamax[(np*st-np)+i,3] <- round(quantile(btmp1,probs=0.975,na.rm=TRUE),2)
-            verifparamax[(np*st-np)+i,4] <- round(quantile(btmp2,probs=0.975,na.rm=TRUE),2)
-            verifparamax[(np*st-np)+i,5] <- round(quantile(sde1,probs=0.975,na.rm=TRUE),2)
-            verifparamax[(np*st-np)+i,6] <- round(quantile(sde2,probs=0.975,na.rm=TRUE),2)
-             }
-        }
-# QQ
-        if (pv[i]=="QQ") {
-            obs <- x$QQ.obs
-            fc1 <- x$QQ.fc1
-            fc2 <- x$QQ.fc2
-            
-            obs <- ifelse(obs > 100., 100., obs)
-            fc1 <- ifelse(fc1 > 100., 100., fc1)
-            fc2 <- ifelse(fc2 > 100., 100., fc2)
-            
-            k <- (obs >= 0. & fc1 >= 0. & fc2 >= 0.)
-            
-            obs <- obs[k]
-            fc1 <- fc1[k]
-            fc2 <- fc2[k]
-             if (length(obs) > 100) {
-            verifpara[(np*st-np)+i,3] <- round(mean(fc1-obs)*1000,2)
-            verifpara[(np*st-np)+i,4] <- round(mean(fc2-obs)*1000,2)
-            verifpara[(np*st-np)+i,5] <- round(sd(fc1-obs)*1000,2)
-            verifpara[(np*st-np)+i,6] <- round(sd(fc2-obs)*1000,2)
-                     
-# confidence intervals:
-        rn <- 500
-        btmp1 <- array(NA,rn)
-        btmp2 <- array(NA,rn)
-        sde1 <- array(NA,rn)
-        sde2 <- array(NA,rn)
-        for (rs in 1:rn) {
-            k <- sample(1:length(obs),length(obs),replace=TRUE)
-            btmp1[rs] <- round(mean(fc1[k]-obs[k])*1000,2)
-            btmp2[rs] <- round(mean(fc2[k]-obs[k])*1000,2)
-            sde1[rs] <- round(sd(fc1[k]-obs[k])*1000,2)
-            sde2[rs] <- round(sd(fc2[k]-obs[k])*1000,2)
-        }
-            
-            verifparamin[(np*st-np)+i,3] <- round(quantile(btmp1,probs=0.025,na.rm=TRUE),2)
-            verifparamin[(np*st-np)+i,4] <- round(quantile(btmp2,probs=0.025,na.rm=TRUE),2)
-            verifparamin[(np*st-np)+i,5] <- round(quantile(sde1,probs=0.025,na.rm=TRUE),2)
-            verifparamin[(np*st-np)+i,6] <- round(quantile(sde2,probs=0.025,na.rm=TRUE),2)
-            verifparamax[(np*st-np)+i,3] <- round(quantile(btmp1,probs=0.975,na.rm=TRUE),2)
-            verifparamax[(np*st-np)+i,4] <- round(quantile(btmp2,probs=0.975,na.rm=TRUE),2)
-            verifparamax[(np*st-np)+i,5] <- round(quantile(sde1,probs=0.975,na.rm=TRUE),2)
-            verifparamax[(np*st-np)+i,6] <- round(quantile(sde2,probs=0.975,na.rm=TRUE),2)
-             }
-        }
-    }
+    #                 
+# co#nfidence intervals:
+    #    rn <- 500
+    #    btmp1 <- array(NA,rn)
+    #    btmp2 <- array(NA,rn)
+    #    sde1 <- array(NA,rn)
+    #    sde2 <- array(NA,rn)
+    #    for (rs in 1:rn) {
+    #        k <- sample(1:length(obs),length(obs),replace=TRUE)
+    #        btmp1[rs] <- round(mean(fc1[k]-obs[k]),2)
+    #        btmp2[rs] <- round(mean(fc2[k]-obs[k]),2)
+    #        sde1[rs] <- round(sd(fc1[k]-obs[k]),2)
+    #        sde2[rs] <- round(sd(fc2[k]-obs[k]),2)
+    #    }
+    #        verifparamin[(np*st-np)+i,3] <- round(quantile(btmp1,probs=0.025,na.rm=TRUE),2)
+    #        verifparamin[(np*st-np)+i,4] <- round(quantile(btmp2,probs=0.025,na.rm=TRUE),2)
+    #        verifparamin[(np*st-np)+i,5] <- round(quantile(sde1,probs=0.025,na.rm=TRUE),2)
+    #        verifparamin[(np*st-np)+i,6] <- round(quantile(sde2,probs=0.025,na.rm=TRUE),2)
+    #        verifparamax[(np*st-np)+i,3] <- round(quantile(btmp1,probs=0.975,na.rm=TRUE),2)
+    #        verifparamax[(np*st-np)+i,4] <- round(quantile(btmp2,probs=0.975,na.rm=TRUE),2)
+    #        verifparamax[(np*st-np)+i,5] <- round(quantile(sde1,probs=0.975,na.rm=TRUE),2)
+    #        verifparamax[(np*st-np)+i,6] <- round(quantile(sde2,probs=0.975,na.rm=TRUE),2)
+    #         }
+    #    }
+# QQ#
+    #    if (pv[i]=="QQ") {
+    #        obs <- x$QQ.obs
+    #        fc1 <- x$QQ.fc1
+    #        fc2 <- x$QQ.fc2
+    #        
+    #        obs <- ifelse(obs > 100., 100., obs)
+    #        fc1 <- ifelse(fc1 > 100., 100., fc1)
+    #        fc2 <- ifelse(fc2 > 100., 100., fc2)
+    #        
+    #        k <- (obs >= 0. & fc1 >= 0. & fc2 >= 0.)
+    #        
+    #        obs <- obs[k]
+    #        fc1 <- fc1[k]
+    #        fc2 <- fc2[k]
+    #         if (length(obs) > 100) {
+    #        verifpara[(np*st-np)+i,3] <- round(mean(fc1-obs)*1000,2)
+    #        verifpara[(np*st-np)+i,4] <- round(mean(fc2-obs)*1000,2)
+    #        verifpara[(np*st-np)+i,5] <- round(sd(fc1-obs)*1000,2)
+    #        verifpara[(np*st-np)+i,6] <- round(sd(fc2-obs)*1000,2)
+    #                 
+# co#nfidence intervals:
+    #    rn <- 500
+    #    btmp1 <- array(NA,rn)
+    #    btmp2 <- array(NA,rn)
+    #    sde1 <- array(NA,rn)
+    #    sde2 <- array(NA,rn)
+    #    for (rs in 1:rn) {
+    #        k <- sample(1:length(obs),length(obs),replace=TRUE)
+    #        btmp1[rs] <- round(mean(fc1[k]-obs[k])*1000,2)
+    #        btmp2[rs] <- round(mean(fc2[k]-obs[k])*1000,2)
+    #        sde1[rs] <- round(sd(fc1[k]-obs[k])*1000,2)
+    #        sde2[rs] <- round(sd(fc2[k]-obs[k])*1000,2)
+    #    }
+    #        
+    #        verifparamin[(np*st-np)+i,3] <- round(quantile(btmp1,probs=0.025,na.rm=TRUE),2)
+    #        verifparamin[(np*st-np)+i,4] <- round(quantile(btmp2,probs=0.025,na.rm=TRUE),2)
+    #        verifparamin[(np*st-np)+i,5] <- round(quantile(sde1,probs=0.025,na.rm=TRUE),2)
+    #        verifparamin[(np*st-np)+i,6] <- round(quantile(sde2,probs=0.025,na.rm=TRUE),2)
+    #        verifparamax[(np*st-np)+i,3] <- round(quantile(btmp1,probs=0.975,na.rm=TRUE),2)
+    #        verifparamax[(np*st-np)+i,4] <- round(quantile(btmp2,probs=0.975,na.rm=TRUE),2)
+    #        verifparamax[(np*st-np)+i,5] <- round(quantile(sde1,probs=0.975,na.rm=TRUE),2)
+    #        verifparamax[(np*st-np)+i,6] <- round(quantile(sde2,probs=0.975,na.rm=TRUE),2)
+    #         }
+    #    }
+    #}
 }   # slist
 
 verifout <- data.frame(verifpara)
